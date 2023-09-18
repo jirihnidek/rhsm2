@@ -150,8 +150,8 @@ func IsValueAllowed(value *reflect.Value, allowedValues *string) (bool, error) {
 
 // LoadRHSMConf tries to load given configuration file to
 // RHSMConf structure
-func LoadRHSMConf(confFilePath *string) (*RHSMConf, error) {
-	rhsmConf := &RHSMConf{filePath: *confFilePath}
+func LoadRHSMConf(confFilePath string) (*RHSMConf, error) {
+	rhsmConf := &RHSMConf{filePath: confFilePath}
 
 	err := rhsmConf.load()
 	if err != nil {

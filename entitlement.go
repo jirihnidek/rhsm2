@@ -3,7 +3,7 @@ package rhsm2
 import (
 	"encoding/json"
 	"fmt"
-	"log"
+	"github.com/rs/zerolog/log"
 	"net/http"
 	"os"
 )
@@ -31,9 +31,7 @@ type EntitlementCertificateKeyJSON struct {
 // Note: candlepin server returns only one SCA entitlement certificate ATM, but REST API allows to
 // return more entitlement certificates.
 func (rhsmClient *RHSMClient) getSCAEntitlementCertificate() ([]EntitlementCertificateKeyJSON, error) {
-	consumerCertFile := rhsmClient.consumerCertPath()
-
-	uuid, err := GetConsumerUUID(consumerCertFile)
+	uuid, err := rhsmClient.GetConsumerUUID(nil)
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to get consumer certificate: %v", err)
@@ -71,27 +69,27 @@ func (rhsmClient *RHSMClient) getSCAEntitlementCertificate() ([]EntitlementCerti
 		if l == 0 {
 			return nil, fmt.Errorf("no SCA entitlement certificate returned from server")
 		}
-		// if l > 0 {} TODO: print warning that more than one entitlement certificate was returned
-		// log.Printf("more than one SCA (%d) entitlement certificates installed", l)
+		if l > 0 {
+			log.Warn().Msgf("more than one SCA (%d) entitlement certificates installed", l)
+		}
 	}
 
 	// Write certificate(s) and key(s) to file(s)
 	for _, entCertKey := range entCertKeys {
 		entCertFilePath, err := rhsmClient.writeEntitlementCert(&entCertKey.Cert, entCertKey.Serial.Serial)
 		if err != nil {
-			// TODO: print error that it was not possible to install entitlement certificate
-			// log.Printf("%s", err)
+			log.Error().Msgf("unable to install entitlement certificate: %s", err)
 			continue
 		}
 		_, err = rhsmClient.writeEntitlementKey(&entCertKey.Key, entCertKey.Serial.Serial)
 		if err != nil {
-			log.Printf("unable to write entitlement key: %s", err)
+			log.Error().Msgf("unable to write entitlement key: %s", err)
 
 			// When it is not possible to install key, then remove certificate file, because
 			// certificate is useless without key
 			err = os.Remove(*entCertFilePath)
 			if err != nil {
-				log.Printf("unable to remove entitlement certificate: %s", err)
+				log.Error().Msgf("unable to remove entitlement certificate: %s", err)
 			}
 		}
 	}

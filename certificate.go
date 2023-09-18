@@ -2,19 +2,28 @@ package rhsm2
 
 import (
 	"fmt"
+	"github.com/rs/zerolog/log"
 	"os"
 )
 
 // writePemFile Tries to write content of PEM (cert or key) to file.
 // If mode is not nil, then access permissions to give file will be modified
 func writePemFile(filePath *string, pemFileContent *string, mode *os.FileMode) error {
-	file, err := os.Create(*filePath)
+	if len(*pemFileContent) == 0 {
+		return fmt.Errorf("canceling writing pem file: %s, because provided content is empty", *filePath)
+	}
 
+	file, err := os.Create(*filePath)
 	if err != nil {
 		return err
 	}
 
-	defer file.Close()
+	defer func(file *os.File) {
+		err := file.Close()
+		if err != nil {
+			log.Error().Msgf("unable to close %s: %s", *filePath, err)
+		}
+	}(file)
 
 	// Print content of cert using Fprint(), because
 	// the string contains formatting sequences like \n

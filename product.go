@@ -6,7 +6,7 @@ import (
 	"encoding/asn1"
 	"encoding/pem"
 	"fmt"
-	"log"
+	"github.com/rs/zerolog/log"
 	"os"
 	"path/filepath"
 	"strings"
@@ -174,7 +174,7 @@ func readAllProductCertificates(productCertDirPath string) ([]InstalledProduct, 
 		filePath := filepath.Join(productCertDirPath, file.Name())
 		productCert, err := readProductCertificate(&filePath)
 		if err != nil {
-			log.Printf("skipping product certificate: %s: %v", filePath, err)
+			log.Warn().Msgf("skipping product certificate: %s: %v", filePath, err)
 			continue
 		}
 		productCerts = append(productCerts, *productCert)

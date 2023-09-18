@@ -3,8 +3,9 @@ package rhsm2
 import "testing"
 
 func TestGetConsumerUUID(t *testing.T) {
+	rhsmClient := RHSMClient{}
 	consumerCertFilePath := "./test/pki/consumer/cert.pem"
-	uuid, err := GetConsumerUUID(&consumerCertFilePath)
+	uuid, err := rhsmClient.GetConsumerUUID(&consumerCertFilePath)
 	if err != nil {
 		t.Fatalf("unable to get consumer UUID from consumer cert: %s", err)
 	} else {
@@ -15,8 +16,9 @@ func TestGetConsumerUUID(t *testing.T) {
 }
 
 func TestGetOwner(t *testing.T) {
+	rhsmClient := RHSMClient{}
 	consumerCertFilePath := "./test/pki/consumer/cert.pem"
-	orgID, err := GetOwner(&consumerCertFilePath)
+	orgID, err := rhsmClient.GetOwner(&consumerCertFilePath)
 	if err != nil {
 		t.Fatalf("unable to get organization ID from consumer cert: %s", err)
 	} else {

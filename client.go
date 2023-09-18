@@ -21,8 +21,15 @@ type RHSMClient struct {
 
 // CreateRHSMClient tries to create structure holding information
 func CreateRHSMClient(confFilePath *string) (*RHSMClient, error) {
+	var err error
+	var rhsmConf *RHSMConf
+
 	// Try to load configuration file
-	rhsmConf, err := LoadRHSMConf(confFilePath)
+	if confFilePath != nil {
+		rhsmConf, err = LoadRHSMConf(*confFilePath)
+	} else {
+		rhsmConf, err = LoadRHSMConf(DefaultRHSMConfFilePath)
+	}
 	if err != nil {
 		return nil, err
 	}

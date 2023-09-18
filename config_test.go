@@ -6,8 +6,7 @@ import (
 )
 
 func TestLoadRHSMConf(t *testing.T) {
-	confFilePath := "./test/rhsm.conf"
-	rhsmConf, err := LoadRHSMConf(&confFilePath)
+	rhsmConf, err := LoadRHSMConf("./test/rhsm.conf")
 	if err != nil {
 		t.Fatalf("unable to load configuration file: %s", err)
 	} else {
@@ -18,8 +17,7 @@ func TestLoadRHSMConf(t *testing.T) {
 }
 
 func TestIsDefaultValue(t *testing.T) {
-	confFilePath := "./test/rhsm.conf"
-	rhsmConf, err := LoadRHSMConf(&confFilePath)
+	rhsmConf, err := LoadRHSMConf("./test/rhsm.conf")
 	if err != nil {
 		t.Fatalf("unable to load configuration file: %s", err)
 	} else {
@@ -62,8 +60,7 @@ func TestIsDefaultValue(t *testing.T) {
 }
 
 func TestIsValueAllowed(t *testing.T) {
-	confFilePath := "./test/rhsm.conf"
-	rhsmConf, err := LoadRHSMConf(&confFilePath)
+	rhsmConf, err := LoadRHSMConf("./test/rhsm.conf")
 	if err != nil {
 		t.Fatalf("unable to load configuration file: %s", err)
 	} else {

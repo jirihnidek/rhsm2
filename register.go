@@ -3,7 +3,8 @@ package rhsm2
 import (
 	"encoding/json"
 	"fmt"
-	"log"
+	"github.com/rs/zerolog/log"
+	"io"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -94,8 +95,75 @@ type ConsumerData struct {
 	Environments   interface{}   `json:"environments"`
 }
 
+// RegisterError is structure used for parsing JSON document returned
+// by candlepin server, when registration is not successful
+type RegisterError struct {
+	DisplayMessage string `json:"displayMessage"`
+	RequestUuid    string `json:"requestUuid"`
+}
+
+// OrganizationData is structure used for parsing JSON document returned
+// by candlepin. This structure represents one organization
+type OrganizationData struct {
+	Created                    string      `json:"created"`
+	Updated                    string      `json:"updated"`
+	Id                         string      `json:"id"`
+	DisplayName                string      `json:"displayName"`
+	Key                        string      `json:"key"`
+	ContentPrefix              interface{} `json:"contentPrefix"`
+	DefaultServiceLevel        interface{} `json:"defaultServiceLevel"`
+	LogLevel                   interface{} `json:"logLevel"`
+	ContentAccessMode          string      `json:"contentAccessMode"`
+	ContentAccessModeList      string      `json:"contentAccessModeList"`
+	AutobindHypervisorDisabled bool        `json:"autobindHypervisorDisabled"`
+	AutobindDisabled           bool        `json:"autobindDisabled"`
+	LastRefreshed              string      `json:"lastRefreshed"`
+	ParentOwner                interface{} `json:"parentOwner"`
+	UpstreamConsumer           interface{} `json:"upstreamConsumer"`
+	Anonymous                  interface{} `json:"anonymous"`
+	Claimed                    interface{} `json:"claimed"`
+}
+
+// GetOrgs tries to get list of available organizations for given username
+func (rhsmClient *RHSMClient) GetOrgs(
+	username string,
+	password string,
+) ([]OrganizationData, error) {
+	var organizations []OrganizationData
+	var headers = make(map[string]string)
+
+	headers["username"] = username
+	headers["password"] = password
+
+	res, err := rhsmClient.NoAuthConnection.request(
+		http.MethodGet,
+		"users/"+username+"/owners",
+		"",
+		"",
+		&headers,
+		nil)
+	if err != nil {
+		return organizations, fmt.Errorf("unable to get list of org IDs: %s", err)
+	}
+
+	resBody, err := getResponseBody(res)
+	if err != nil {
+		return nil, err
+	}
+
+	err = json.Unmarshal([]byte(*resBody), &organizations)
+	if err != nil {
+		return organizations, fmt.Errorf("unable to unmarshal list of organizations: %s", err)
+	}
+
+	return organizations, nil
+}
+
 // registerSystem tries to register system
-func (rhsmClient *RHSMClient) registerSystem(headers map[string]string, query string) error {
+func (rhsmClient *RHSMClient) registerSystem(
+	headers map[string]string,
+	query string,
+) (*ConsumerData, error) {
 	// It is necessary to set system certificate version to value 3.0 or higher
 	facts := SystemFacts{
 		SystemCertificateVersion: "3.2",
@@ -104,13 +172,13 @@ func (rhsmClient *RHSMClient) registerSystem(headers map[string]string, query st
 
 	hostname, err := os.Hostname()
 	if err != nil {
-		return fmt.Errorf("unable to get hostname: %s", err)
+		return nil, fmt.Errorf("unable to get hostname: %s", err)
 	}
 
 	var defaultSyspurposeFilePath = DefaultSystemPurposeFilePath
 	sysPurpose, err := getSystemPurpose(&defaultSyspurposeFilePath)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	installedProducts := rhsmClient.getInstalledProducts()
@@ -131,7 +199,7 @@ func (rhsmClient *RHSMClient) registerSystem(headers map[string]string, query st
 	}
 	body, err := json.Marshal(registerData)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	res, err := rhsmClient.NoAuthConnection.request(
@@ -143,32 +211,54 @@ func (rhsmClient *RHSMClient) registerSystem(headers map[string]string, query st
 		&body)
 
 	if err != nil {
-		return err
+		return nil, err
+	}
+
+	if res.StatusCode != 200 {
+		resBody, err := io.ReadAll(res.Body)
+		if err != nil {
+			return nil, fmt.Errorf(
+				"unable to register, status code: %d (unable to read response body)",
+				res.StatusCode,
+			)
+		}
+		var regError RegisterError
+		err = json.Unmarshal(resBody, &regError)
+		if err != nil {
+			return nil, fmt.Errorf(
+				"unable to register, status code: %d (unable to parse response body)",
+				res.StatusCode,
+			)
+		}
+		return nil, fmt.Errorf(
+			"unable to register, status code: %d, error message: %s",
+			res.StatusCode,
+			regError.DisplayMessage,
+		)
 	}
 
 	resBody, err := getResponseBody(res)
-
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	consumerData := ConsumerData{}
 	err = json.Unmarshal([]byte(*resBody), &consumerData)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	err = writeConsumerCert(rhsmClient.consumerCertPath(), &consumerData.IdCert.Cert)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	err = writeConsumerKey(rhsmClient.consumerKeyPath(), &consumerData.IdCert.Key)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	fmt.Printf("System registered\n")
+	log.Info().Msg("System registered")
 
 	certFilePath := filepath.Join(rhsmClient.RHSMConf.RHSM.ConsumerCertDir, "cert.pem")
 	keyFilePath := filepath.Join(rhsmClient.RHSMConf.RHSM.ConsumerCertDir, "key.pem")
@@ -179,27 +269,29 @@ func (rhsmClient *RHSMClient) registerSystem(headers map[string]string, query st
 		&certFilePath,
 		&keyFilePath,
 	)
-
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	// When we are in SCA mode, then we can get entitlement cert(s) and generate content
 	if consumerData.Owner.ContentAccessMode == "org_environment" {
 		err = rhsmClient.enableContent()
 		if err != nil {
-			return err
+			return nil, err
 		}
 	} else {
-		return fmt.Errorf("organization %s does not use Simple Content Access Mode",
+		return nil, fmt.Errorf("organization %s does not use Simple Content Access Mode",
 			consumerData.Owner.DisplayName)
 	}
 
-	return nil
+	return &consumerData, nil
 }
 
 // RegisterOrgActivationKeys tries to register system using organization id and activation keys
-func (rhsmClient *RHSMClient) RegisterOrgActivationKeys(org *string, activationKeys []string) error {
+func (rhsmClient *RHSMClient) RegisterOrgActivationKeys(
+	org *string,
+	activationKeys []string,
+) (*ConsumerData, error) {
 	var headers = make(map[string]string)
 
 	headers["Content-type"] = "application/json"
@@ -218,14 +310,15 @@ func (rhsmClient *RHSMClient) RegisterOrgActivationKeys(org *string, activationK
 }
 
 // RegisterUsernamePasswordOrg tries to register system using organization id, username and password
-func (rhsmClient *RHSMClient) RegisterUsernamePasswordOrg(username *string, password *string, org *string) error {
+func (rhsmClient *RHSMClient) RegisterUsernamePasswordOrg(
+	username *string,
+	password *string,
+	org *string,
+) (*ConsumerData, error) {
 	var headers = make(map[string]string)
 
 	headers["username"] = *username
 	headers["password"] = *password
-
-	// TODO: when organization is not specified using CLI option --organization,
-	//       then get list of available organization using: GET /users/<username>/owners
 
 	var query string
 	if *org != "" {
@@ -246,12 +339,6 @@ func (rhsmClient *RHSMClient) enableContent() error {
 		return err
 	}
 
-	if len(entCertKeys) > 1 {
-		fmt.Printf("Entitlement certificates installed\n")
-	} else {
-		fmt.Printf("Entitlement certificate installed\n")
-	}
-
 	// Get content from entitlement certificates
 	// Note: candlepin returns only one entitlement certificate in SCA mode, but
 	// in theory more entitlement certificate can be returned
@@ -261,7 +348,7 @@ func (rhsmClient *RHSMClient) enableContent() error {
 		certContent := &entCertKey.Cert
 		products, err := getContentFromEntCert(certContent)
 		if err != nil {
-			// TODO: write some warning to log file
+			log.Warn().Msgf("unable to get content from entitlement certificate: %s", err)
 			continue
 		}
 		engineeringProducts[serial] = products
@@ -275,7 +362,7 @@ func (rhsmClient *RHSMClient) enableContent() error {
 		}
 	}
 
-	fmt.Printf("%s generated\n", DefaultRepoFilePath)
+	log.Info().Msgf("%s generated", DefaultRepoFilePath)
 
 	return nil
 }
@@ -285,12 +372,12 @@ func (rhsmClient *RHSMClient) enableContent() error {
 func (rhsmClient *RHSMClient) getInstalledProducts() []InstalledProduct {
 	installedProducts, err := readAllProductCertificates(rhsmClient.RHSMConf.RHSM.ProductCertDir)
 	if err != nil {
-		log.Printf("failed reading directory with product certificates: %s\n", err)
+		log.Debug().Msgf("unable to read directory with product certificates: %s\n", err)
 	}
 
 	installedDefaultProducts, err := readAllProductCertificates(DirectoryDefaultProductCertificate)
 	if err != nil {
-		log.Printf("failed reading directory with default product certificates: %s\n", err)
+		log.Debug().Msgf("unable to read directory with default product certificates: %s\n", err)
 	}
 
 	installedProducts = append(installedProducts, installedDefaultProducts...)
@@ -300,6 +387,7 @@ func (rhsmClient *RHSMClient) getInstalledProducts() []InstalledProduct {
 // createListOfContentTags creates list of unique tags from the list of installed products
 func createListOfContentTags(installedProducts []InstalledProduct) []string {
 	var contentTags []string
+
 	// We use map, because there is nothing like set
 	var contentTagsMap = make(map[string]bool)
 	for _, prod := range installedProducts {
