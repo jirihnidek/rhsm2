@@ -10,8 +10,6 @@ import (
 
 // Unregister tries to unregister system
 func (rhsmClient *RHSMClient) Unregister() error {
-	consumerKeyFile := rhsmClient.consumerKeyPath()
-
 	uuid, err := rhsmClient.GetConsumerUUID(nil)
 
 	if err != nil {
@@ -30,7 +28,7 @@ func (rhsmClient *RHSMClient) Unregister() error {
 	}
 
 	// TODO: handle unusual state in better way
-	if res.Status != "204" {
+	if res.StatusCode != 204 {
 		log.Error().Msgf("system unregistered, status code: %d", res.StatusCode)
 	}
 
@@ -39,7 +37,7 @@ func (rhsmClient *RHSMClient) Unregister() error {
 		return fmt.Errorf("unable to remove consumer certificate: %s", err)
 	}
 
-	err = os.Remove(*consumerKeyFile)
+	err = os.Remove(*rhsmClient.consumerKeyPath())
 	if err != nil {
 		return fmt.Errorf("unable to remove consumer key: %s", err)
 	}
@@ -63,9 +61,9 @@ func (rhsmClient *RHSMClient) Unregister() error {
 	}
 
 	// Remove redhat.repo file
-	err = os.Remove(DefaultRepoFilePath)
+	err = os.Remove(rhsmClient.RHSMConf.yumRepoFilePath)
 	if err != nil {
-		log.Error().Msgf("unable to remove %s: %s", DefaultRepoFilePath, err)
+		log.Error().Msgf("unable to remove %s: %s", rhsmClient.RHSMConf.yumRepoFilePath, err)
 	}
 
 	return nil

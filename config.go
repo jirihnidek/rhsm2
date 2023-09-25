@@ -11,63 +11,79 @@ import (
 
 const DefaultRHSMConfFilePath = "/etc/rhsm/rhsm.conf"
 
+// RHSMConfServer represents section [server] in rhsm.conf
+type RHSMConfServer struct {
+	// Basic settings for connection to candlepin server
+	Hostname string `ini:"hostname" default:"subscription.rhsm.redhat.com"`
+	Prefix   string `ini:"prefix" default:"/subscription"`
+	Port     string `ini:"port" default:"443"`
+	Insecure bool   `ini:"insecure" default:"false"`
+	Timeout  int64  `ini:"server_timeout" default:"180"`
+
+	// Proxy settings
+	ProxyHostname string `ini:"proxy_hostname" default:""`
+	ProxyScheme   string `ini:"proxy_scheme" default:"http" allowedValues:"http,https"`
+	ProxyPort     string `ini:"proxy_port" default:"3128"`
+	ProxyUser     string `ini:"proxy_user" default:""`
+	ProxyPassword string `ini:"proxy_password" default:""`
+
+	// Comma separated list of hostnames, when connection should not go
+	// through proxy server
+	NoProxy string `ini:"no_proxy" default:""`
+}
+
+// RHSMConfRHSM represents section [rhsm] in rhsm.conf
+type RHSMConfRHSM struct {
+	// Directories used for certificates
+	CACertDir          string `ini:"ca_cert_dir" default:"/etc/rhsm/ca/"`
+	ConsumerCertDir    string `ini:"consumer_cert_dir" default:"/etc/pki/consumer"`
+	EntitlementCertDir string `ini:"entitlement_cert_dir" default:"/etc/pki/entitlement"`
+	ProductCertDir     string `ini:"product_cert_dir" default:"/etc/pki/product"`
+
+	// Configuration options related to RPMs and repositories
+	BaseURL              string `ini:"baseurl" default:"https://cdn.redhat.com"`
+	ReportPackageProfile bool   `ini:"report_package_profile" default:"true"`
+	RepoCACertificate    string `ini:"repo_ca_cert" default:"/etc/rhsm/ca/redhat-uep.pem"`
+	ManageRepos          bool   `ini:"manage_repos" default:"true"`
+
+	// Configuration options related to DNF plugins
+	AutoEnableYumPlugins  bool `ini:"auto_enable_yum_plugins" default:"true"`
+	PackageProfileOnTrans bool `ini:"package_profile_on_trans" default:"false"`
+}
+
+// RHSMConfRHSMCertDaemon represents section [rhsmcertd] in rhsm.conf
+type RHSMConfRHSMCertDaemon struct {
+	AutoRegistration         bool  `ini:"auto_registration" default:"false"`
+	AutoRegistrationInterval int64 `ini:"auto_registration_interval" default:"60"`
+	Splay                    bool  `ini:"splay" default:"true"`
+}
+
+type RHSMConfLogging struct {
+	DefaultLogLevel string `ini:"default_log_level" default:"INFO" allowedValues:"ERROR,WARN,INFO,DEBUG"`
+}
+
 // RHSMConf is structure intended for storing configuration
 // that is typically read from /etc/rhsm/rhsm.conf. We try to
 type RHSMConf struct {
-	// not public attribute
+	// Not public attributes
+
+	// filePath is file path of configuration file
 	filePath string
 
+	// yumRepoFilePath is path
+	yumRepoFilePath string
+
 	// Server represents section [server]
-	Server struct {
-		// Basic settings for connection to candlepin server
-		Hostname string `ini:"hostname" default:"subscription.rhsm.redhat.com"`
-		Prefix   string `ini:"prefix" default:"/subscription"`
-		Port     string `ini:"port" default:"443"`
-		Insecure bool   `ini:"insecure" default:"false"`
-		Timeout  int64  `ini:"server_timeout" default:"180"`
-
-		// Proxy settings
-		ProxyHostname string `ini:"proxy_hostname" default:""`
-		ProxyScheme   string `ini:"proxy_scheme" default:"http" allowedValues:"http,https"`
-		ProxyPort     string `ini:"proxy_port" default:"3128"`
-		ProxyUser     string `ini:"proxy_user" default:""`
-		ProxyPassword string `ini:"proxy_password" default:""`
-
-		// Comma separated list of hostnames, when connection should not go
-		// through proxy server
-		NoProxy string `ini:"no_proxy" default:""`
-	} `ini:"server"`
+	Server RHSMConfServer `ini:"server"`
 
 	// RHSM represents section [rhsm]
-	RHSM struct {
-		// Directories used for certificates
-		CACertDir          string `ini:"ca_cert_dir" default:"/etc/rhsm/ca/"`
-		ConsumerCertDir    string `ini:"consumer_cert_dir" default:"/etc/pki/consumer"`
-		EntitlementCertDir string `ini:"entitlement_cert_dir" default:"/etc/pki/entitlement"`
-		ProductCertDir     string `ini:"product_cert_dir" default:"/etc/pki/product"`
-
-		// Configuration options related to RPMs and repositories
-		BaseURL              string `ini:"baseurl" default:"https://cdn.redhat.com"`
-		ReportPackageProfile bool   `ini:"report_package_profile" default:"true"`
-		RepoCACertificate    string `ini:"repo_ca_cert" default:"/etc/rhsm/ca/redhat-uep.pem"`
-		ManageRepos          bool   `ini:"manage_repos" default:"true"`
-
-		// Configuration options related to DNF plugins
-		AutoEnableYumPlugins  bool `ini:"auto_enable_yum_plugins" default:"true"`
-		PackageProfileOnTrans bool `ini:"package_profile_on_trans" default:"false"`
-	} `ini:"rhsm"`
+	RHSM RHSMConfRHSM `ini:"rhsm"`
 
 	// RHSMCertDaemon represents section [rhsmcertd]
-	RHSMCertDaemon struct {
-		AutoRegistration         bool  `ini:"auto_registration" default:"false"`
-		AutoRegistrationInterval int64 `ini:"auto_registration_interval" default:"60"`
-		Splay                    bool  `ini:"splay" default:"true"`
-	} `ini:"rhsmcertd"`
+	RHSMCertDaemon RHSMConfRHSMCertDaemon `ini:"rhsmcertd"`
 
 	// Logging represents section [logging]
-	Logging struct {
-		DefaultLogLevel string `ini:"default_log_level" default:"INFO" allowedValues:"ERROR,WARN,INFO,DEBUG"`
-	} `ini:"logging"`
+	Logging RHSMConfLogging `ini:"logging"`
 }
 
 // setDefaultValues tries to set default values specified in tags
@@ -151,7 +167,10 @@ func IsValueAllowed(value *reflect.Value, allowedValues *string) (bool, error) {
 // LoadRHSMConf tries to load given configuration file to
 // RHSMConf structure
 func LoadRHSMConf(confFilePath string) (*RHSMConf, error) {
-	rhsmConf := &RHSMConf{filePath: confFilePath}
+	rhsmConf := &RHSMConf{
+		filePath:        confFilePath,
+		yumRepoFilePath: DefaultRepoFilePath,
+	}
 
 	err := rhsmConf.load()
 	if err != nil {
