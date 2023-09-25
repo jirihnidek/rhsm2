@@ -42,7 +42,7 @@ func CreateRHSMClient(confFilePath *string) (*RHSMClient, error) {
 	}
 
 	// Try to create connection without authentication
-	// Note: It doesn't do any TCP/TLS handshake
+	// Note: It doesn't do any TCP/TLS handshake ATM
 	err = rhsmClient.createNoAuthConnection(
 		&rhsmConf.Server.Hostname,
 		&rhsmConf.Server.Port,
