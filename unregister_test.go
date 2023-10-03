@@ -60,7 +60,7 @@ type TestingFileSystem struct {
 func setupTestingFiles(tempDirFilePath string, testingFileSystem *TestingFileSystem) error {
 
 	// Copy consumer key to temporary directory
-	srcConsumerKeyFilePath := "./test/pki/consumer/key.pem"
+	srcConsumerKeyFilePath := "./test/etc/pki/consumer/key.pem"
 	dstConsumerKeyFilePath := filepath.Join(testingFileSystem.ConsumerDirFilePath, "key.pem")
 	err := copyFile(&srcConsumerKeyFilePath, &dstConsumerKeyFilePath)
 	if err != nil {
@@ -68,7 +68,7 @@ func setupTestingFiles(tempDirFilePath string, testingFileSystem *TestingFileSys
 			"unable to create testing consumer key file: %s", err)
 	}
 	// Copy consumer cert to temporary directory
-	srcConsumerCertFilePath := "test/pki/consumer/cert.pem"
+	srcConsumerCertFilePath := "test/etc/pki/consumer/cert.pem"
 	dstConsumerCertFilePath := filepath.Join(testingFileSystem.ConsumerDirFilePath, "cert.pem")
 	err = copyFile(&srcConsumerCertFilePath, &dstConsumerCertFilePath)
 	if err != nil {
@@ -77,7 +77,7 @@ func setupTestingFiles(tempDirFilePath string, testingFileSystem *TestingFileSys
 	}
 
 	// Copy entitlement key to temporary directory
-	srcEntitlementKeyFilePath := "./test/pki/entitlement/6490061114713729830-key.pem"
+	srcEntitlementKeyFilePath := "./test/etc/pki/entitlement/6490061114713729830-key.pem"
 	dstEntitlementKeyFilePath := filepath.Join(testingFileSystem.EntitlementDirFilePath, "6490061114713729830-key.pem")
 	err = copyFile(&srcEntitlementKeyFilePath, &dstEntitlementKeyFilePath)
 	if err != nil {
@@ -85,7 +85,7 @@ func setupTestingFiles(tempDirFilePath string, testingFileSystem *TestingFileSys
 			"unable to create testing entitlement key file: %s", err)
 	}
 	// Copy entitlement cert to temporary directory
-	srcEntitlementCertFilePath := "./test/pki/entitlement/6490061114713729830.pem"
+	srcEntitlementCertFilePath := "./test/etc/pki/entitlement/6490061114713729830.pem"
 	dstEntitlementCertFilePath := filepath.Join(testingFileSystem.EntitlementDirFilePath, "6490061114713729830.pem")
 	err = copyFile(&srcEntitlementCertFilePath, &dstEntitlementCertFilePath)
 	if err != nil {
@@ -93,7 +93,7 @@ func setupTestingFiles(tempDirFilePath string, testingFileSystem *TestingFileSys
 	}
 
 	// Copy product cert to temporary directory
-	srcProductCertFilePath := "./test/pki/product/900.pem"
+	srcProductCertFilePath := "./test/etc/pki/product/900.pem"
 	dstProductCertFilePath := filepath.Join(testingFileSystem.ProductDirFilePath, "900.pem")
 	err = copyFile(&srcProductCertFilePath, &dstProductCertFilePath)
 	if err != nil {
@@ -101,7 +101,7 @@ func setupTestingFiles(tempDirFilePath string, testingFileSystem *TestingFileSys
 	}
 
 	// Copy default product cert to temporary directory
-	srcDefaultProductCertFilePath := "./test/pki/product-default/5050.pem"
+	srcDefaultProductCertFilePath := "./test/etc/pki/product-default/5050.pem"
 	dstDefaultProductCertFilePath := filepath.Join(testingFileSystem.ProductDefaultDirFilePath, "5050.pem")
 	err = copyFile(&srcDefaultProductCertFilePath, &dstDefaultProductCertFilePath)
 	if err != nil {
@@ -124,7 +124,7 @@ func setupTestingFiles(tempDirFilePath string, testingFileSystem *TestingFileSys
 func setupTestingDirectories(tempDirFilePath string) (*TestingFileSystem, error) {
 	testingFileSystem := TestingFileSystem{}
 	// Create temporary directory for consumer certificates
-	consumerDirFilePath := filepath.Join(tempDirFilePath, "pki/consumer")
+	consumerDirFilePath := filepath.Join(tempDirFilePath, "etc/pki/consumer")
 	err := os.MkdirAll(consumerDirFilePath, 0755)
 	if err != nil && !os.IsExist(err) {
 		return nil, fmt.Errorf(
@@ -133,7 +133,7 @@ func setupTestingDirectories(tempDirFilePath string) (*TestingFileSystem, error)
 	testingFileSystem.ConsumerDirFilePath = consumerDirFilePath
 
 	// Create temporary directory for entitlement certificates
-	entitlementDirFilePath := filepath.Join(tempDirFilePath, "pki/entitlement")
+	entitlementDirFilePath := filepath.Join(tempDirFilePath, "etc/pki/entitlement")
 	err = os.MkdirAll(entitlementDirFilePath, 0755)
 	if err != nil && !os.IsExist(err) {
 		return nil, fmt.Errorf(
@@ -142,7 +142,7 @@ func setupTestingDirectories(tempDirFilePath string) (*TestingFileSystem, error)
 	testingFileSystem.EntitlementDirFilePath = entitlementDirFilePath
 
 	// Create temporary directory for product certificates
-	productDirFilePath := filepath.Join(tempDirFilePath, "pki/product")
+	productDirFilePath := filepath.Join(tempDirFilePath, "etc/pki/product")
 	err = os.MkdirAll(productDirFilePath, 0755)
 	if err != nil && !os.IsExist(err) {
 		return nil, fmt.Errorf(
@@ -151,7 +151,7 @@ func setupTestingDirectories(tempDirFilePath string) (*TestingFileSystem, error)
 	testingFileSystem.ProductDirFilePath = productDirFilePath
 
 	// Create temporary directory for product certificates
-	productDefaultDirFilePath := filepath.Join(tempDirFilePath, "pki/product-default")
+	productDefaultDirFilePath := filepath.Join(tempDirFilePath, "etc/pki/product-default")
 	err = os.MkdirAll(productDefaultDirFilePath, 0755)
 	if err != nil && !os.IsExist(err) {
 		return nil, fmt.Errorf(

@@ -21,12 +21,12 @@ func getSystemPurpose(filePath *string) (*SysPurposeJSON, error) {
 
 	sysPurposeContent, err := os.ReadFile(*filePath)
 	if err != nil {
-		return &sysPurpose, fmt.Errorf("unable to read system purpose file: %s, %s", *filePath, err)
+		return nil, fmt.Errorf("unable to read system purpose file: %s, %s", *filePath, err)
 	}
 
 	err = json.Unmarshal(sysPurposeContent, &sysPurpose)
 	if err != nil {
-		return &sysPurpose, fmt.Errorf("unable to unmarshal system purpose file: %s: %s", *filePath, err)
+		return nil, fmt.Errorf("unable to unmarshal system purpose file: %s: %s", *filePath, err)
 	}
 
 	return &sysPurpose, nil
