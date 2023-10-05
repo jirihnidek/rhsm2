@@ -330,18 +330,8 @@ func (rhsmClient *RHSMClient) RegisterUsernamePasswordOrg(
 	return rhsmClient.registerSystem(headers, query)
 }
 
-// enableContent tries to get SCA entitlement certificate and generate redhat.repo from this
-// certificate
-func (rhsmClient *RHSMClient) enableContent() error {
-	// Try to get entitlement certificate(s) from server
-	entCertKeys, err := rhsmClient.getSCAEntitlementCertificate()
-	if err != nil {
-		return err
-	}
-
-	// Get content from entitlement certificates
-	// Note: candlepin returns only one entitlement certificate in SCA mode, but
-	// in theory more entitlement certificate can be returned
+// createProductMap tries to create map of entitlement certificates
+func createProductMap(entCertKeys []EntitlementCertificateKeyJSON) map[int64][]EngineeringProduct {
 	var engineeringProducts = make(map[int64][]EngineeringProduct)
 	for _, entCertKey := range entCertKeys {
 		serial := entCertKey.Serial.Serial
@@ -353,16 +343,31 @@ func (rhsmClient *RHSMClient) enableContent() error {
 		}
 		engineeringProducts[serial] = products
 	}
+	return engineeringProducts
+}
+
+// enableContent tries to get SCA entitlement certificate and generate redhat.repo from these
+// certificates. Note: candlepin returns only one SCA certificate, but it returns it
+// in the list. Thus, in theory more certificates could be returned.
+func (rhsmClient *RHSMClient) enableContent() error {
+	// Try to get entitlement certificate(s) from server
+	entCertKeys, err := rhsmClient.getSCAEntitlementCertificates()
+	if err != nil {
+		return err
+	}
+
+	// Get content from entitlement certificates
+	engineeringProducts := createProductMap(entCertKeys)
 
 	// Write content to redhat.repo file
 	if len(engineeringProducts) > 0 {
-		err = rhsmClient.writeRepoFile(DefaultRepoFilePath, engineeringProducts)
+		err = rhsmClient.writeRepoFile(engineeringProducts)
 		if err != nil {
 			return fmt.Errorf("unable to write repo file: %s: %s", DefaultRepoFilePath, err)
 		}
 	}
 
-	log.Info().Msgf("%s generated", DefaultRepoFilePath)
+	log.Info().Msgf("%s generated", rhsmClient.RHSMConf.yumRepoFilePath)
 
 	return nil
 }

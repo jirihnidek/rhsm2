@@ -8,7 +8,7 @@ import (
 	"os"
 )
 
-// EntitlementCertificateKeyJSON is structure used for un-marshaling of JSON returned from candlepin server
+// EntitlementCertificateKeyJSON is structure used for un-marshaling of JSON returned from candlepin server.
 // JSON document includes list of this objects
 type EntitlementCertificateKeyJSON struct {
 	Created string `json:"created"`
@@ -30,7 +30,7 @@ type EntitlementCertificateKeyJSON struct {
 // When it is possible to get entitlement certificate(s), then write these certificate(s) to file.
 // Note: candlepin server returns only one SCA entitlement certificate ATM, but REST API allows to
 // return more entitlement certificates.
-func (rhsmClient *RHSMClient) getSCAEntitlementCertificate() ([]EntitlementCertificateKeyJSON, error) {
+func (rhsmClient *RHSMClient) getSCAEntitlementCertificates() ([]EntitlementCertificateKeyJSON, error) {
 	uuid, err := rhsmClient.GetConsumerUUID(nil)
 
 	if err != nil {

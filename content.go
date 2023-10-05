@@ -6,10 +6,14 @@ import (
 	"encoding/json"
 	"encoding/pem"
 	"fmt"
+	"github.com/rs/zerolog/log"
 	"gopkg.in/ini.v1"
 	"io"
 	"net/url"
+	"os"
+	"path/filepath"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -54,7 +58,9 @@ type EntitlementContentJSON struct {
 }
 
 // writeRepoFile tries to write map of products to repo file
-func (rhsmClient *RHSMClient) writeRepoFile(filePath string, productsMap map[int64][]EngineeringProduct) error {
+func (rhsmClient *RHSMClient) writeRepoFile(
+	productsMap map[int64][]EngineeringProduct,
+) error {
 	file := ini.Empty()
 
 	ini.PrettyFormat = false
@@ -118,16 +124,69 @@ func (rhsmClient *RHSMClient) writeRepoFile(filePath string, productsMap map[int
 		}
 	}
 
-	err := file.SaveTo(filePath)
+	err := file.SaveTo(rhsmClient.RHSMConf.yumRepoFilePath)
 	if err != nil {
-		return fmt.Errorf("unable to write to %s: %s", filePath, err)
+		return fmt.Errorf("unable to write to %s: %s",
+			rhsmClient.RHSMConf.yumRepoFilePath, err)
 	}
 	return nil
 }
 
+// generateRepoFileFromEntitlementCerts tries to generate redhat.repo file
+// from installed entitlement certificate(s)
+func (rhsmClient *RHSMClient) generateRepoFileFromInstalledEntitlementCerts() error {
+	entCertDirPath := rhsmClient.RHSMConf.RHSM.EntitlementCertDir
+	entCertsFilePaths, err := os.ReadDir(entCertDirPath)
+	if err != nil {
+		return fmt.Errorf("unable to read content of %s: %s", entCertDirPath, err)
+	}
+
+	var engineeringProductsMap = make(map[int64][]EngineeringProduct)
+
+	for _, file := range entCertsFilePaths {
+		fileName := file.Name()
+		filePath := filepath.Join(entCertDirPath, fileName)
+		// Skip the file if it is key file
+		if strings.HasSuffix(filePath, "-key.pem") {
+			continue
+		}
+		// Other pem file should be entitlement cert file
+		if strings.HasSuffix(filePath, ".pem") {
+			engineeringProduct, err := getContentFromEntCertFile(&filePath)
+			if err != nil {
+				log.Debug().Msgf("skipping reading content from %s, %s", filePath, err)
+			}
+			serialNumberStr := strings.TrimSuffix(fileName, ".pem")
+			serialNumber, err := strconv.ParseInt(serialNumberStr, 10, 64)
+			if err != nil {
+				log.Debug().Msgf("unable to convert %s to int: %s", fileName, err)
+			}
+			engineeringProductsMap[serialNumber] = engineeringProduct
+		}
+	}
+
+	return rhsmClient.writeRepoFile(engineeringProductsMap)
+}
+
+// getContentFromEntCertFile tries to load entitlement certificate from given file
+func getContentFromEntCertFile(filePath *string) ([]EngineeringProduct, error) {
+	entCertFileContent, err := os.ReadFile(*filePath)
+	if err != nil {
+		return nil, fmt.Errorf("unable to read entitlement certificate: %s, %s", *filePath, err)
+	}
+
+	content := string(entCertFileContent)
+	engineeringProducts, err := getContentFromEntCert(&content)
+	if err != nil {
+		return nil, err
+	}
+
+	return engineeringProducts, nil
+}
+
 // getContentFromEntCert tries to get content definition from content of entitlement certificate
-func getContentFromEntCert(entCert *string) ([]EngineeringProduct, error) {
-	data := []byte(*entCert)
+func getContentFromEntCert(entCertContent *string) ([]EngineeringProduct, error) {
+	data := []byte(*entCertContent)
 	blockEntitlementDataFound := false
 	var engineeringProducts []EngineeringProduct
 
