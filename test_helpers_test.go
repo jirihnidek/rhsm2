@@ -134,13 +134,12 @@ func setupTestingFiles(
 	// redhat.repo can be generated only in situation, when at least one entitlement certificate
 	// has been installed
 	if entCertsInstalled {
-		// Create empty redhat.repo
+		// Create only empty redhat.repo ATM
 		yumRepoFilePath := filepath.Join(testingFileSystem.YumReposDirFilePath, "redhat.repo")
 		_, err = os.Create(yumRepoFilePath)
 		if err != nil {
 			return fmt.Errorf("unable to create %s: %s", yumRepoFilePath, err)
 		}
-		// TODO: populate redhat.repo with content from installed entitlement certificate
 		testingFileSystem.YumRepoFilePath = yumRepoFilePath
 	}
 
