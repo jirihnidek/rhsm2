@@ -18,44 +18,44 @@ func helperTestInstalledFilesRemoved(t *testing.T, testingFiles *TestingFileSyst
 	}
 
 	// Directory with content cert & key should be empty
-	isEmpty, err := isDirEmpty(&testingFiles.ConsumerDirFilePath)
+	isEmpty, err := isDirEmpty(&testingFiles.ConsumerDirPath)
 	if err != nil {
-		t.Fatalf("unable to read content of: %s: %s", testingFiles.ConsumerDirFilePath, err)
+		t.Fatalf("unable to read content of: %s: %s", testingFiles.ConsumerDirPath, err)
 	}
 	if isEmpty == false {
 		t.Fatalf("not all files have been deleted from %s during unregister process",
-			testingFiles.ConsumerDirFilePath)
+			testingFiles.ConsumerDirPath)
 	}
 
 	// Directory with entitlement cert & key should be empty
-	isEmpty, err = isDirEmpty(&testingFiles.EntitlementDirFilePath)
+	isEmpty, err = isDirEmpty(&testingFiles.EntitlementDirPath)
 	if err != nil {
-		t.Fatalf("unable to read content of: %s: %s", testingFiles.EntitlementDirFilePath, err)
+		t.Fatalf("unable to read content of: %s: %s", testingFiles.EntitlementDirPath, err)
 	}
 	if isEmpty == false {
 		t.Fatalf("not all files have been deleted from %s during unregister process",
-			testingFiles.EntitlementDirFilePath)
+			testingFiles.EntitlementDirPath)
 	}
 
 	// Directory with default product certs should be still populated. Such files should never have been
 	// deleted from this directory, because it is protected directory.
-	isEmpty, err = isDirEmpty(&testingFiles.ProductDefaultDirFilePath)
+	isEmpty, err = isDirEmpty(&testingFiles.ProductDefaultDirPath)
 	if err != nil {
-		t.Fatalf("unable to read content of: %s: %s", testingFiles.ProductDefaultDirFilePath, err)
+		t.Fatalf("unable to read content of: %s: %s", testingFiles.ProductDefaultDirPath, err)
 	}
 	if isEmpty == true {
 		t.Fatalf("certs cannot be deleted from %s during unregister process",
-			testingFiles.ProductDefaultDirFilePath)
+			testingFiles.ProductDefaultDirPath)
 	}
 
 	// Directory with installed product certs should be still populated too
-	isEmpty, err = isDirEmpty(&testingFiles.ProductDirFilePath)
+	isEmpty, err = isDirEmpty(&testingFiles.ProductDirPath)
 	if err != nil {
-		t.Fatalf("unable to read content of: %s: %s", testingFiles.ProductDirFilePath, err)
+		t.Fatalf("unable to read content of: %s: %s", testingFiles.ProductDirPath, err)
 	}
 	if isEmpty == true {
 		t.Fatalf("certs cannot be deleted from %s during unregister process",
-			testingFiles.ProductDirFilePath)
+			testingFiles.ProductDirPath)
 	}
 }
 
@@ -68,43 +68,43 @@ func helperTestInstalledFilesNotRemoved(t *testing.T, testingFiles *TestingFileS
 	}
 
 	// Directory with content cert & key should be installed
-	isEmpty, err := isDirEmpty(&testingFiles.ConsumerDirFilePath)
+	isEmpty, err := isDirEmpty(&testingFiles.ConsumerDirPath)
 	if err != nil {
-		t.Fatalf("unable to read content of: %s: %s", testingFiles.ConsumerDirFilePath, err)
+		t.Fatalf("unable to read content of: %s: %s", testingFiles.ConsumerDirPath, err)
 	}
 	if isEmpty == true {
-		t.Fatalf("no consumer cert or key in: %s", testingFiles.ConsumerDirFilePath)
+		t.Fatalf("no consumer cert or key in: %s", testingFiles.ConsumerDirPath)
 	}
 
 	// Directory with entitlement cert & key should be installed
-	isEmpty, err = isDirEmpty(&testingFiles.EntitlementDirFilePath)
+	isEmpty, err = isDirEmpty(&testingFiles.EntitlementDirPath)
 	if err != nil {
-		t.Fatalf("unable to read content of: %s: %s", testingFiles.EntitlementDirFilePath, err)
+		t.Fatalf("unable to read content of: %s: %s", testingFiles.EntitlementDirPath, err)
 	}
 	if isEmpty == true {
 		t.Fatalf("no entitlement key or cert in: %s",
-			testingFiles.EntitlementDirFilePath)
+			testingFiles.EntitlementDirPath)
 	}
 
 	// Directory with default product certs should be still populated. Such files should never have been
 	// deleted from this directory, because it is protected directory.
-	isEmpty, err = isDirEmpty(&testingFiles.ProductDefaultDirFilePath)
+	isEmpty, err = isDirEmpty(&testingFiles.ProductDefaultDirPath)
 	if err != nil {
-		t.Fatalf("unable to read content of: %s: %s", testingFiles.ProductDefaultDirFilePath, err)
+		t.Fatalf("unable to read content of: %s: %s", testingFiles.ProductDefaultDirPath, err)
 	}
 	if isEmpty == true {
 		t.Fatalf("certs cannot be deleted from %s during unregister process",
-			testingFiles.ProductDefaultDirFilePath)
+			testingFiles.ProductDefaultDirPath)
 	}
 
 	// Directory with installed product certs should be still populated too
-	isEmpty, err = isDirEmpty(&testingFiles.ProductDirFilePath)
+	isEmpty, err = isDirEmpty(&testingFiles.ProductDirPath)
 	if err != nil {
-		t.Fatalf("unable to read content of: %s: %s", testingFiles.ProductDirFilePath, err)
+		t.Fatalf("unable to read content of: %s: %s", testingFiles.ProductDirPath, err)
 	}
 	if isEmpty == true {
 		t.Fatalf("certs cannot be deleted from %s during unregister process",
-			testingFiles.ProductDirFilePath)
+			testingFiles.ProductDirPath)
 	}
 }
 
@@ -145,7 +145,8 @@ func TestUnregisterRegisteredSystem(t *testing.T) {
 	// Create root directory for this test
 	tempDirFilePath := t.TempDir()
 
-	testingFiles, err := setupTestingFileSystem(tempDirFilePath, true, true, true)
+	testingFiles, err := setupTestingFileSystem(
+		tempDirFilePath, true, true, true, true)
 	if err != nil {
 		t.Fatalf("unable to setup testing environment: %s", err)
 	}
@@ -202,7 +203,7 @@ func TestUnregisterUnRegisteredSystem(t *testing.T) {
 	tempDirFilePath := t.TempDir()
 
 	testingFiles, err := setupTestingFileSystem(
-		tempDirFilePath, false, false, false)
+		tempDirFilePath, false, false, false, true)
 	if err != nil {
 		t.Fatalf("unable to setup testing environment: %s", err)
 	}
@@ -262,7 +263,7 @@ func TestUnregisterDeletedConsumer(t *testing.T) {
 	tempDirFilePath := t.TempDir()
 
 	testingFiles, err := setupTestingFileSystem(
-		tempDirFilePath, true, true, true)
+		tempDirFilePath, true, true, true, true)
 	if err != nil {
 		t.Fatalf("unable to setup testing environment: %s", err)
 	}
@@ -328,7 +329,7 @@ func TestUnregisterWrongConsumer(t *testing.T) {
 	tempDirFilePath := t.TempDir()
 
 	testingFiles, err := setupTestingFileSystem(
-		tempDirFilePath, true, true, true)
+		tempDirFilePath, true, true, true, true)
 	if err != nil {
 		t.Fatalf("unable to setup testing environment: %s", err)
 	}
@@ -389,7 +390,8 @@ func TestUnregisterInternalServerError(t *testing.T) {
 	// Create root directory for this test
 	tempDirFilePath := t.TempDir()
 
-	testingFiles, err := setupTestingFileSystem(tempDirFilePath, true, true, true)
+	testingFiles, err := setupTestingFileSystem(
+		tempDirFilePath, true, true, true, true)
 	if err != nil {
 		t.Fatalf("unable to setup testing environment: %s", err)
 	}

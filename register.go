@@ -372,20 +372,13 @@ func (rhsmClient *RHSMClient) enableContent() error {
 	return nil
 }
 
-// getInstalledProducts tries to get all installed products. Typically from directories:
+// getInstalledProducts tries to get all installed products. Typically, from directories:
 // /etc/pki/product and /etc/pki/product-default
 func (rhsmClient *RHSMClient) getInstalledProducts() []InstalledProduct {
-	installedProducts, err := readAllProductCertificates(rhsmClient.RHSMConf.RHSM.ProductCertDir)
+	installedProducts, err := rhsmClient.readAllProductCertificates()
 	if err != nil {
-		log.Debug().Msgf("unable to read directory with product certificates: %s\n", err)
+		log.Warn().Msgf("unable to read any director with product certificates: %s\n", err)
 	}
-
-	installedDefaultProducts, err := readAllProductCertificates(DirectoryDefaultProductCertificate)
-	if err != nil {
-		log.Debug().Msgf("unable to read directory with default product certificates: %s\n", err)
-	}
-
-	installedProducts = append(installedProducts, installedDefaultProducts...)
 	return installedProducts
 }
 

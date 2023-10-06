@@ -18,7 +18,7 @@ const RedhatOidNamespace = "1.3.6.1.4.1.2312.9"
 // /etc/pki/product-default. DNF plugin installs product certificates
 // to /etc/pki/product and there is typically one pre-installed product
 // certificate in /etc/pki/product-default, when pre-installed operating
-// system is part of some product
+// system is part of some product (Red Hat Enterprise Linux)
 type InstalledProduct struct {
 	// Following attributes are sent in the report.
 	Id           string `json:"productId"`
@@ -161,8 +161,8 @@ func readProductCertificate(productCertFilePath *string) (*InstalledProduct, err
 	return parseProductCertificateContent(productCertFilePath, &productCertContent)
 }
 
-// readAllProductCertificates tries to read all product certificates in given directory
-func readAllProductCertificates(productCertDirPath string) ([]InstalledProduct, error) {
+// readProductCertificatesInDir tries to read all product certificates from given directory
+func readProductCertificatesInDir(productCertDirPath string) ([]InstalledProduct, error) {
 	var productCerts []InstalledProduct
 
 	productCertsFilePaths, err := os.ReadDir(productCertDirPath)
@@ -179,5 +179,33 @@ func readAllProductCertificates(productCertDirPath string) ([]InstalledProduct, 
 		}
 		productCerts = append(productCerts, *productCert)
 	}
+	return productCerts, nil
+}
+
+// readAllProductCertificates tries to read all product certificates in given directory
+func (rhsmClient *RHSMClient) readAllProductCertificates() ([]InstalledProduct, error) {
+	var productCerts []InstalledProduct
+	var err1, err2 error
+
+	// Try to read installed product certificates
+	productCertDirPath := rhsmClient.RHSMConf.RHSM.ProductCertDir
+	productCerts, err1 = readProductCertificatesInDir(productCertDirPath)
+	if err1 != nil {
+		log.Warn().Msgf("%s", err1)
+	}
+
+	// Try to read preinstalled (default) product certificates
+	defaultProductCertDirPath := rhsmClient.RHSMConf.RHSM.DefaultProductCertDir
+	defaultProductCerts, err2 := readProductCertificatesInDir(defaultProductCertDirPath)
+	if err2 != nil {
+		log.Warn().Msgf("%s", err2)
+	}
+
+	if err1 != nil && err2 != nil {
+		return productCerts, fmt.Errorf("unable to read any product cert: %s, %s", err1, err2)
+	}
+
+	productCerts = append(productCerts, defaultProductCerts...)
+
 	return productCerts, nil
 }

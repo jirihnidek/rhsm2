@@ -11,6 +11,8 @@ import (
 
 const DefaultRHSMConfFilePath = "/etc/rhsm/rhsm.conf"
 
+// Note: not all fields of configuration are used ATM
+
 // RHSMConfServer represents section [server] in rhsm.conf
 type RHSMConfServer struct {
 	// Basic settings for connection to candlepin server
@@ -35,10 +37,11 @@ type RHSMConfServer struct {
 // RHSMConfRHSM represents section [rhsm] in rhsm.conf
 type RHSMConfRHSM struct {
 	// Directories used for certificates
-	CACertDir          string `ini:"ca_cert_dir" default:"/etc/rhsm/ca/"`
-	ConsumerCertDir    string `ini:"consumer_cert_dir" default:"/etc/pki/consumer"`
-	EntitlementCertDir string `ini:"entitlement_cert_dir" default:"/etc/pki/entitlement"`
-	ProductCertDir     string `ini:"product_cert_dir" default:"/etc/pki/product"`
+	CACertDir             string `ini:"ca_cert_dir" default:"/etc/rhsm/ca/"`
+	ConsumerCertDir       string `ini:"consumer_cert_dir" default:"/etc/pki/consumer"`       // modified
+	EntitlementCertDir    string `ini:"entitlement_cert_dir" default:"/etc/pki/entitlement"` // modified
+	ProductCertDir        string `ini:"product_cert_dir" default:"/etc/pki/product"`         // modified
+	DefaultProductCertDir string `default:"/etc/pki/product-default"`
 
 	// Configuration options related to RPMs and repositories
 	BaseURL              string `ini:"baseurl" default:"https://cdn.redhat.com"`
