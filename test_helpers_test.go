@@ -61,82 +61,89 @@ func copyFile(srcFilePath *string, dstFilePath *string) error {
 // TestingFileSystem is structure holding information about file paths
 // used for testing
 type TestingFileSystem struct {
-	ConsumerDirFilePath       string
-	EntitlementDirFilePath    string
-	ProductDirFilePath        string
-	ProductDefaultDirFilePath string
-	YumReposDirFilePath       string
-	YumRepoFilePath           string
+	ConsumerDirPath       string
+	EntitlementDirPath    string
+	ProductDirPath        string
+	ProductDefaultDirPath string
+	YumReposDirPath       string
+	YumRepoFilePath       string
 }
 
 // setupTestingFiles tries to copy and generate testing files to testing directories
 func setupTestingFiles(
-	tempDirFilePath string,
 	testingFileSystem *TestingFileSystem,
+	registered bool,
 	entCertsInstalled bool,
 	prodCertsInstalled bool,
+	defaultProdCertsInstalled bool,
 ) error {
 
-	// Copy consumer key to temporary directory
-	srcConsumerKeyFilePath := "./test/etc/pki/consumer/key.pem"
-	dstConsumerKeyFilePath := filepath.Join(testingFileSystem.ConsumerDirFilePath, "key.pem")
-	err := copyFile(&srcConsumerKeyFilePath, &dstConsumerKeyFilePath)
-	if err != nil {
-		return fmt.Errorf(
-			"unable to create testing consumer key file: %s", err)
-	}
-	// Copy consumer cert to temporary directory
-	srcConsumerCertFilePath := "test/etc/pki/consumer/cert.pem"
-	dstConsumerCertFilePath := filepath.Join(testingFileSystem.ConsumerDirFilePath, "cert.pem")
-	err = copyFile(&srcConsumerCertFilePath, &dstConsumerCertFilePath)
-	if err != nil {
-		return fmt.Errorf(
-			"unable to create testing consumer cert file: %s", err)
+	if registered {
+		// Copy consumer key to temporary directory
+		srcConsumerKeyFilePath := "./test/etc/pki/consumer/key.pem"
+		dstConsumerKeyFilePath := filepath.Join(testingFileSystem.ConsumerDirPath, "key.pem")
+		err := copyFile(&srcConsumerKeyFilePath, &dstConsumerKeyFilePath)
+		if err != nil {
+			return fmt.Errorf(
+				"unable to create testing consumer key file: %s", err)
+		}
+		// Copy consumer cert to temporary directory
+		srcConsumerCertFilePath := "test/etc/pki/consumer/cert.pem"
+		dstConsumerCertFilePath := filepath.Join(testingFileSystem.ConsumerDirPath, "cert.pem")
+		err = copyFile(&srcConsumerCertFilePath, &dstConsumerCertFilePath)
+		if err != nil {
+			return fmt.Errorf(
+				"unable to create testing consumer cert file: %s", err)
+		}
 	}
 
 	if entCertsInstalled {
 		// Copy entitlement key to temporary directory
 		srcEntitlementKeyFilePath := "./test/etc/pki/entitlement/6490061114713729830-key.pem"
-		dstEntitlementKeyFilePath := filepath.Join(testingFileSystem.EntitlementDirFilePath, "6490061114713729830-key.pem")
-		err = copyFile(&srcEntitlementKeyFilePath, &dstEntitlementKeyFilePath)
+		dstEntitlementKeyFilePath := filepath.Join(testingFileSystem.EntitlementDirPath, "6490061114713729830-key.pem")
+		err := copyFile(&srcEntitlementKeyFilePath, &dstEntitlementKeyFilePath)
 		if err != nil {
 			return fmt.Errorf(
 				"unable to create testing entitlement key file: %s", err)
 		}
 		// Copy entitlement cert to temporary directory
 		srcEntitlementCertFilePath := "./test/etc/pki/entitlement/6490061114713729830.pem"
-		dstEntitlementCertFilePath := filepath.Join(testingFileSystem.EntitlementDirFilePath, "6490061114713729830.pem")
+		dstEntitlementCertFilePath := filepath.Join(testingFileSystem.EntitlementDirPath, "6490061114713729830.pem")
 		err = copyFile(&srcEntitlementCertFilePath, &dstEntitlementCertFilePath)
 		if err != nil {
 			return fmt.Errorf("unable to create testing entitlement cert file: %s", err)
 		}
 	}
 
+	// Copy product cert to temporary directory
 	if prodCertsInstalled {
-		// Copy product cert to temporary directory
 		srcProductCertFilePath := "./test/etc/pki/product/900.pem"
-		dstProductCertFilePath := filepath.Join(testingFileSystem.ProductDirFilePath, "900.pem")
-		err = copyFile(&srcProductCertFilePath, &dstProductCertFilePath)
+		dstProductCertFilePath := filepath.Join(testingFileSystem.ProductDirPath, "900.pem")
+		err := copyFile(&srcProductCertFilePath, &dstProductCertFilePath)
 		if err != nil {
 			return fmt.Errorf("unable to create testing product cert file: %s", err)
 		}
 	}
 
 	// Copy default product cert to temporary directory
-	// Note: There is always at least one default product certificate on RHEL system
-	srcDefaultProductCertFilePath := "./test/etc/pki/product-default/5050.pem"
-	dstDefaultProductCertFilePath := filepath.Join(testingFileSystem.ProductDefaultDirFilePath, "5050.pem")
-	err = copyFile(&srcDefaultProductCertFilePath, &dstDefaultProductCertFilePath)
-	if err != nil {
-		return fmt.Errorf("unable to create testing default product cert file: %s", err)
+	// Note: There is always at least one default product certificate on RHEL system,
+	// but there are other Linux distributions without preinstalled product certificates
+	// like Fedora or Centos Stream
+	if defaultProdCertsInstalled {
+		srcDefaultProductCertFilePath := "./test/etc/pki/product-default/5050.pem"
+		dstDefaultProductCertFilePath := filepath.Join(testingFileSystem.ProductDefaultDirPath, "5050.pem")
+		err := copyFile(&srcDefaultProductCertFilePath, &dstDefaultProductCertFilePath)
+		if err != nil {
+			return fmt.Errorf("unable to create testing default product cert file: %s", err)
+		}
 	}
 
 	// redhat.repo can be generated only in situation, when at least one entitlement certificate
 	// has been installed
 	if entCertsInstalled {
 		// Create only empty redhat.repo ATM
-		yumRepoFilePath := filepath.Join(testingFileSystem.YumReposDirFilePath, "redhat.repo")
-		_, err = os.Create(yumRepoFilePath)
+		yumRepoFilePath := filepath.Join(testingFileSystem.YumReposDirPath, "redhat.repo")
+		_, err := os.Create(yumRepoFilePath)
 		if err != nil {
 			return fmt.Errorf("unable to create %s: %s", yumRepoFilePath, err)
 		}
@@ -156,7 +163,7 @@ func setupTestingDirectories(tempDirFilePath string) (*TestingFileSystem, error)
 		return nil, fmt.Errorf(
 			"unable to create temporary directory: %s: %s", consumerDirFilePath, err)
 	}
-	testingFileSystem.ConsumerDirFilePath = consumerDirFilePath
+	testingFileSystem.ConsumerDirPath = consumerDirFilePath
 
 	// Create temporary directory for entitlement certificates
 	entitlementDirFilePath := filepath.Join(tempDirFilePath, "etc/pki/entitlement")
@@ -165,7 +172,7 @@ func setupTestingDirectories(tempDirFilePath string) (*TestingFileSystem, error)
 		return nil, fmt.Errorf(
 			"unable to create temporary directory: %s: %s", entitlementDirFilePath, err)
 	}
-	testingFileSystem.EntitlementDirFilePath = entitlementDirFilePath
+	testingFileSystem.EntitlementDirPath = entitlementDirFilePath
 
 	// Create temporary directory for product certificates
 	productDirFilePath := filepath.Join(tempDirFilePath, "etc/pki/product")
@@ -174,7 +181,7 @@ func setupTestingDirectories(tempDirFilePath string) (*TestingFileSystem, error)
 		return nil, fmt.Errorf(
 			"unable to create temporary directory: %s: %s", productDirFilePath, err)
 	}
-	testingFileSystem.ProductDirFilePath = productDirFilePath
+	testingFileSystem.ProductDirPath = productDirFilePath
 
 	// Create temporary directory for product certificates
 	productDefaultDirFilePath := filepath.Join(tempDirFilePath, "etc/pki/product-default")
@@ -183,7 +190,7 @@ func setupTestingDirectories(tempDirFilePath string) (*TestingFileSystem, error)
 		return nil, fmt.Errorf(
 			"unable to create temporary directory: %s: %s", productDefaultDirFilePath, err)
 	}
-	testingFileSystem.ProductDefaultDirFilePath = productDefaultDirFilePath
+	testingFileSystem.ProductDefaultDirPath = productDefaultDirFilePath
 
 	// Create directory for redhat.repo
 	yumReposDirFilePath := filepath.Join(tempDirFilePath, "etc/yum.repos.d")
@@ -192,7 +199,7 @@ func setupTestingDirectories(tempDirFilePath string) (*TestingFileSystem, error)
 		return nil, fmt.Errorf(
 			"unable to create temporary directory: %s: %s", yumReposDirFilePath, err)
 	}
-	testingFileSystem.YumReposDirFilePath = yumReposDirFilePath
+	testingFileSystem.YumReposDirPath = yumReposDirFilePath
 
 	return &testingFileSystem, nil
 }
@@ -204,17 +211,16 @@ func setupTestingFileSystem(
 	registered bool,
 	entCertsInstalled bool,
 	prodCertsInstalled bool,
+	defaultProdCertsInstalled bool,
 ) (*TestingFileSystem, error) {
 	testingFileSystem, err := setupTestingDirectories(tempDirFilePath)
 	if err != nil {
 		return nil, fmt.Errorf("unable to create testing directories: %s", err)
 	}
 
-	if registered {
-		err = setupTestingFiles(tempDirFilePath, testingFileSystem, entCertsInstalled, prodCertsInstalled)
-		if err != nil {
-			return nil, fmt.Errorf("unable to copy testing file to testing directories: %s", err)
-		}
+	err = setupTestingFiles(testingFileSystem, registered, entCertsInstalled, prodCertsInstalled, defaultProdCertsInstalled)
+	if err != nil {
+		return nil, fmt.Errorf("unable to copy testing file to testing directories: %s", err)
 	}
 
 	return testingFileSystem, nil
@@ -244,9 +250,10 @@ func setupTestingRHSMClient(testingFiles *TestingFileSystem, server *httptest.Se
 			Prefix:   prefix,
 		},
 		RHSM: RHSMConfRHSM{
-			ConsumerCertDir:    testingFiles.ConsumerDirFilePath,
-			EntitlementCertDir: testingFiles.EntitlementDirFilePath,
-			ProductCertDir:     testingFiles.ProductDirFilePath,
+			ConsumerCertDir:       testingFiles.ConsumerDirPath,
+			EntitlementCertDir:    testingFiles.EntitlementDirPath,
+			ProductCertDir:        testingFiles.ProductDirPath,
+			DefaultProductCertDir: testingFiles.ProductDefaultDirPath,
 		},
 	}
 

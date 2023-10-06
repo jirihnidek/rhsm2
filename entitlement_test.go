@@ -66,7 +66,7 @@ func TestGetEntitlementCertificate(t *testing.T) {
 	// Setup filesystem for the case, when system is only registered,
 	// but no entitlement cert/key has been installed yet
 	testingFiles, err := setupTestingFileSystem(
-		tempDirFilePath, true, false, false)
+		tempDirFilePath, true, false, false, true)
 	if err != nil {
 		t.Fatalf("unable to setup testing environment: %s", err)
 	}
@@ -95,23 +95,23 @@ func TestGetEntitlementCertificate(t *testing.T) {
 	}
 
 	// Entitlement cert & key should be installed
-	isEmpty, err := isDirEmpty(&testingFiles.EntitlementDirFilePath)
+	isEmpty, err := isDirEmpty(&testingFiles.EntitlementDirPath)
 	if err != nil {
-		t.Fatalf("unable to read content of: %s: %s", testingFiles.EntitlementDirFilePath, err)
+		t.Fatalf("unable to read content of: %s: %s", testingFiles.EntitlementDirPath, err)
 	}
 	if isEmpty == true {
 		t.Fatalf("no entitlement cert or key has been installed to: %s",
-			testingFiles.EntitlementDirFilePath)
+			testingFiles.EntitlementDirPath)
 	}
 
 	// Test that entitlement cert is installed
-	expectedEntCertFilePath := filepath.Join(testingFiles.EntitlementDirFilePath, "2150990815908364188.pem")
+	expectedEntCertFilePath := filepath.Join(testingFiles.EntitlementDirPath, "2150990815908364188.pem")
 	if _, err := os.Stat(expectedEntCertFilePath); err != nil {
 		t.Fatalf("expected entitlement cert: %s is not installed: %s", expectedEntCertFilePath, err)
 	}
 
 	// Test that entitlement key is installed
-	expectedEntKeyFilePath := filepath.Join(testingFiles.EntitlementDirFilePath, "2150990815908364188-key.pem")
+	expectedEntKeyFilePath := filepath.Join(testingFiles.EntitlementDirPath, "2150990815908364188-key.pem")
 	if _, err := os.Stat(expectedEntKeyFilePath); err != nil {
 		t.Fatalf("expected entitlement key: %s is not installed: %s", expectedEntKeyFilePath, err)
 	}
@@ -164,7 +164,7 @@ func TestGetEntitlementCertificateWrongConsumerUUID(t *testing.T) {
 	// Setup filesystem for the case, when system is only registered,
 	// but no entitlement cert/key has been installed yet
 	testingFiles, err := setupTestingFileSystem(
-		tempDirFilePath, true, false, false)
+		tempDirFilePath, true, false, false, true)
 	if err != nil {
 		t.Fatalf("unable to setup testing environment: %s", err)
 	}
@@ -220,7 +220,7 @@ func TestGetEntitlementCertificateDeletedConsumerUUID(t *testing.T) {
 	// Setup filesystem for the case, when system is only registered,
 	// but no entitlement cert/key has been installed yet
 	testingFiles, err := setupTestingFileSystem(
-		tempDirFilePath, true, false, false)
+		tempDirFilePath, true, false, false, true)
 	if err != nil {
 		t.Fatalf("unable to setup testing environment: %s", err)
 	}
@@ -276,7 +276,7 @@ func TestGetEntitlementCertificateInternalServerError(t *testing.T) {
 	// Setup filesystem for the case, when system is only registered,
 	// but no entitlement cert/key has been installed yet
 	testingFiles, err := setupTestingFileSystem(
-		tempDirFilePath, true, false, false)
+		tempDirFilePath, true, false, false, true)
 	if err != nil {
 		t.Fatalf("unable to setup testing environment: %s", err)
 	}
