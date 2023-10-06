@@ -245,7 +245,7 @@ func (rhsmClient *RHSMClient) registerSystem(
 	consumerData := ConsumerData{}
 	err = json.Unmarshal([]byte(*resBody), &consumerData)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("unable to parse consumer object: %s, %s", *resBody, err)
 	}
 
 	err = writeConsumerCert(rhsmClient.consumerCertPath(), &consumerData.IdCert.Cert)

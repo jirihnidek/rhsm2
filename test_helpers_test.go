@@ -61,6 +61,7 @@ func copyFile(srcFilePath *string, dstFilePath *string) error {
 // TestingFileSystem is structure holding information about file paths
 // used for testing
 type TestingFileSystem struct {
+	CACertDirPath         string
 	ConsumerDirPath       string
 	EntitlementDirPath    string
 	ProductDirPath        string
@@ -138,17 +139,13 @@ func setupTestingFiles(
 		}
 	}
 
-	// redhat.repo can be generated only in situation, when at least one entitlement certificate
-	// has been installed
-	if entCertsInstalled {
-		// Create only empty redhat.repo ATM
-		yumRepoFilePath := filepath.Join(testingFileSystem.YumReposDirPath, "redhat.repo")
-		_, err := os.Create(yumRepoFilePath)
-		if err != nil {
-			return fmt.Errorf("unable to create %s: %s", yumRepoFilePath, err)
-		}
-		testingFileSystem.YumRepoFilePath = yumRepoFilePath
+	// Create only empty redhat.repo ATM
+	yumRepoFilePath := filepath.Join(testingFileSystem.YumReposDirPath, "redhat.repo")
+	_, err := os.Create(yumRepoFilePath)
+	if err != nil {
+		return fmt.Errorf("unable to create %s: %s", yumRepoFilePath, err)
 	}
+	testingFileSystem.YumRepoFilePath = yumRepoFilePath
 
 	return nil
 }
@@ -156,9 +153,19 @@ func setupTestingFiles(
 // setupTestingDirectories tries to set up directories for testing filesystem
 func setupTestingDirectories(tempDirFilePath string) (*TestingFileSystem, error) {
 	testingFileSystem := TestingFileSystem{}
+
+	// Create temporary directory for CA certificate
+	caCertDirPath := filepath.Join(tempDirFilePath, "etc/rhsm/ca")
+	err := os.MkdirAll(caCertDirPath, 0755)
+	if err != nil && !os.IsExist(err) {
+		return nil, fmt.Errorf(
+			"unable to create temporary directory: %s: %s", caCertDirPath, err)
+	}
+	testingFileSystem.CACertDirPath = caCertDirPath
+
 	// Create temporary directory for consumer certificates
 	consumerDirFilePath := filepath.Join(tempDirFilePath, "etc/pki/consumer")
-	err := os.MkdirAll(consumerDirFilePath, 0755)
+	err = os.MkdirAll(consumerDirFilePath, 0755)
 	if err != nil && !os.IsExist(err) {
 		return nil, fmt.Errorf(
 			"unable to create temporary directory: %s: %s", consumerDirFilePath, err)
@@ -254,6 +261,7 @@ func setupTestingRHSMClient(testingFiles *TestingFileSystem, server *httptest.Se
 			EntitlementCertDir:    testingFiles.EntitlementDirPath,
 			ProductCertDir:        testingFiles.ProductDirPath,
 			DefaultProductCertDir: testingFiles.ProductDefaultDirPath,
+			CACertDir:             testingFiles.CACertDirPath,
 		},
 	}
 
