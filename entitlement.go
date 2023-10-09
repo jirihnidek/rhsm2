@@ -31,7 +31,7 @@ type EntitlementCertificateKeyJSON struct {
 // Note: candlepin server returns only one SCA entitlement certificate ATM, but REST API allows to
 // return more entitlement certificates.
 func (rhsmClient *RHSMClient) getSCAEntitlementCertificates() ([]EntitlementCertificateKeyJSON, error) {
-	uuid, err := rhsmClient.GetConsumerUUID(nil)
+	uuid, err := rhsmClient.GetConsumerUUID()
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to get consumer certificate: %v", err)
