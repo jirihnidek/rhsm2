@@ -8,15 +8,9 @@ import (
 )
 
 // GetConsumerUUID tries to get consumer UUID from installed consumer certificate
-func (rhsmClient *RHSMClient) GetConsumerUUID(consumerCertFilePath *string) (*string, error) {
-	var consumerCert []byte
-	var err error
-
-	if consumerCertFilePath != nil {
-		consumerCert, err = os.ReadFile(*consumerCertFilePath)
-	} else {
-		consumerCert, err = os.ReadFile(*rhsmClient.consumerCertPath())
-	}
+func (rhsmClient *RHSMClient) GetConsumerUUID() (*string, error) {
+	consumerCertFilePath := rhsmClient.consumerCertPath()
+	consumerCert, err := os.ReadFile(*consumerCertFilePath)
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to read consumer certificate: %v", err)
@@ -40,15 +34,10 @@ func (rhsmClient *RHSMClient) GetConsumerUUID(consumerCertFilePath *string) (*st
 }
 
 // GetOwner tries to get owner from installed consumer certificate
-func (rhsmClient *RHSMClient) GetOwner(consumerCertFilePath *string) (*string, error) {
-	var consumerCert []byte
-	var err error
+func (rhsmClient *RHSMClient) GetOwner() (*string, error) {
+	consumerCertFilePath := rhsmClient.consumerCertPath()
 
-	if consumerCertFilePath != nil {
-		consumerCert, err = os.ReadFile(*consumerCertFilePath)
-	} else {
-		consumerCert, err = os.ReadFile(*rhsmClient.consumerCertPath())
-	}
+	consumerCert, err := os.ReadFile(*rhsmClient.consumerCertPath())
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to read consumer certificate: %v", err)

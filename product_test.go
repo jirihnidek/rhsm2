@@ -48,8 +48,8 @@ func TestReadAllProductCertificates(t *testing.T) {
 // installed product certificates (there are only default product certs)
 func TestReadAllProductCertificatesNoInstalled(t *testing.T) {
 	server := httptest.NewTLSServer(
-		// It is expected that Unregister() method will call only
-		// one REST API point
+		// It is expected that reading installed product certificates will not
+		// trigger any REST API call
 		http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
 			t.Fatalf("no REST API call needed for reading product certs, %s %s called",
 				req.Method, req.URL.String())

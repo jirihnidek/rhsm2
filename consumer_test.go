@@ -1,11 +1,36 @@
 package rhsm2
 
-import "testing"
+import (
+	"net/http"
+	"net/http/httptest"
+	"testing"
+)
 
 func TestGetConsumerUUID(t *testing.T) {
-	rhsmClient := RHSMClient{}
-	consumerCertFilePath := "./test/etc/pki/consumer/cert.pem"
-	uuid, err := rhsmClient.GetConsumerUUID(&consumerCertFilePath)
+	server := httptest.NewTLSServer(
+		// It is expected that GetConsumerUUID() will not trigger any
+		// REST API call
+		http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
+			t.Fatalf("no REST API call needed for reading installed consumer cert, %s %s called",
+				req.Method, req.URL.String())
+		}))
+	defer server.Close()
+
+	// Create root directory for this test
+	tempDirFilePath := t.TempDir()
+
+	testingFiles, err := setupTestingFileSystem(
+		tempDirFilePath, true, false, false, true)
+	if err != nil {
+		t.Fatalf("unable to setup testing environment: %s", err)
+	}
+
+	rhsmClient, err := setupTestingRHSMClient(testingFiles, server)
+	if err != nil {
+		t.Fatalf("unable to setup testing rhsm client: %s", err)
+	}
+
+	uuid, err := rhsmClient.GetConsumerUUID()
 	if err != nil {
 		t.Fatalf("unable to get consumer UUID from consumer cert: %s", err)
 	} else {
@@ -16,9 +41,31 @@ func TestGetConsumerUUID(t *testing.T) {
 }
 
 func TestGetOwner(t *testing.T) {
-	rhsmClient := RHSMClient{}
-	consumerCertFilePath := "./test/etc/pki/consumer/cert.pem"
-	orgID, err := rhsmClient.GetOwner(&consumerCertFilePath)
+	server := httptest.NewTLSServer(
+		// It is expected that GetOwner() will not trigger any
+		// REST API call
+		http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
+			t.Fatalf("no REST API call needed for reading installed consumer cert, %s %s called",
+				req.Method, req.URL.String())
+		}))
+	defer server.Close()
+
+	// Create root directory for this test
+	tempDirFilePath := t.TempDir()
+
+	testingFiles, err := setupTestingFileSystem(
+		tempDirFilePath, true, false, false, true)
+	if err != nil {
+		t.Fatalf("unable to setup testing environment: %s", err)
+	}
+
+	rhsmClient, err := setupTestingRHSMClient(testingFiles, server)
+	if err != nil {
+		t.Fatalf("unable to setup testing rhsm client: %s", err)
+	}
+
+	orgID, err := rhsmClient.GetOwner()
+
 	if err != nil {
 		t.Fatalf("unable to get organization ID from consumer cert: %s", err)
 	} else {
