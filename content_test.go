@@ -127,7 +127,7 @@ func TestWriteRepoFileNoEntCert(t *testing.T) {
 
 	err = rhsmClient.generateRepoFileFromInstalledEntitlementCerts()
 
-	if err == nil {
-		t.Fatalf("no exception raised, when no entitlement certificate installed")
+	if err != nil {
+		t.Fatalf("when no entitlement certificate installed, error returned: %s", err)
 	}
 }
