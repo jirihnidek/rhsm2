@@ -2,9 +2,13 @@ package rhsm2
 
 import "testing"
 
+// TestCreateRHSMClient test the case, when client is
+// successfully created using given configuration file
 func TestCreateRHSMClient(t *testing.T) {
 	confFilePath := "./test/etc/rhsm/rhsm.conf"
+
 	rhsmClient, err := CreateRHSMClient(&confFilePath)
+
 	if err != nil {
 		t.Fatalf("unable to create RHSM client: %s", err)
 	} else {

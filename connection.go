@@ -5,9 +5,11 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
+	"github.com/henvic/httpretty"
+	"github.com/rs/zerolog/log"
 	"io"
+	"net"
 	"net/http"
-	"net/http/httputil"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -108,22 +110,22 @@ func (connection *RHSMConnection) request(
 		}
 	}
 
-	printReq := os.Getenv("SUBMAN_DEBUG_PRINT_REQUEST")
-	if printReq != "" {
-		dumpReq, _ := httputil.DumpRequestOut(req, true)
-		fmt.Printf("%s\n", string(dumpReq))
-	}
+	//printReq := os.Getenv("SUBMAN_DEBUG_PRINT_REQUEST")
+	//if printReq != "" {
+	//	dumpReq, _ := httputil.DumpRequestOut(req, true)
+	//	fmt.Printf("%s\n", string(dumpReq))
+	//}
 
 	res, err := connection.Client.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("error making http request %s: %s\n", method, err)
 	}
 
-	printRes := os.Getenv("SUBMAN_DEBUG_PRINT_RESPONSE")
-	if printRes != "" {
-		dumpRes, _ := httputil.DumpResponse(res, true)
-		fmt.Printf("%s\n", string(dumpRes))
-	}
+	//printRes := os.Getenv("SUBMAN_DEBUG_PRINT_RESPONSE")
+	//if printRes != "" {
+	//	dumpRes, _ := httputil.DumpResponse(res, true)
+	//	fmt.Printf("%s\n", string(dumpRes))
+	//}
 
 	return res, nil
 }
@@ -177,37 +179,70 @@ func (rhsmClient *RHSMClient) createHTTPsClient(certFile *string, keyFile *strin
 		}
 	}
 
-	var transport *http.Transport
+	transport := http.DefaultTransport.(*http.Transport).Clone()
+	transport.TLSClientConfig = tlsConfig
 
 	if rhsmClient.RHSMConf.Server.ProxyHostname != "" {
-		proxyScheme := rhsmClient.RHSMConf.Server.ProxyScheme
+		log.Debug().Msgf("using proxy configuration from rhsm.conf")
 		proxyHostname := rhsmClient.RHSMConf.Server.ProxyHostname
 		proxyPort := rhsmClient.RHSMConf.Server.ProxyPort
 		proxyUser := rhsmClient.RHSMConf.Server.ProxyUser
 		proxyPassword := rhsmClient.RHSMConf.Server.ProxyPassword
 
-		var proxyURLString string
-		if proxyUser != "" && proxyPassword != "" {
-			proxyURLString = proxyScheme + "://" + proxyUser + ":" + proxyPassword + "@" + proxyHostname + ":" + proxyPort
+		// Detect if proxyHostname is raw IPv6 address and assembly
+		// proxyHostnamePort, because url.URL does not have Port field
+		var proxyHostnamePort string
+		ipAddress := net.ParseIP(proxyHostname)
+		if ipAddress != nil && len(ipAddress) == net.IPv6len {
+			proxyHostnamePort = "[" + proxyHostname + "]:" + proxyPort
 		} else {
-			proxyURLString = proxyScheme + "://" + proxyHostname + ":" + proxyPort
-		}
-		proxyURL, err := url.Parse(proxyURLString)
-		if err != nil {
-			return nil, fmt.Errorf("unable to parse proxy URL: %s", err)
+			proxyHostnamePort = proxyHostname + ":" + proxyPort
 		}
 
-		transport = &http.Transport{
-			TLSClientConfig: tlsConfig,
-			Proxy:           http.ProxyURL(proxyURL),
+		var proxyURL url.URL
+		if proxyUser != "" || proxyPassword != "" {
+			proxyURL = url.URL{
+				Scheme: "https",
+				Host:   proxyHostnamePort,
+				User:   url.UserPassword(proxyUser, proxyPassword),
+			}
+		} else {
+			proxyURL = url.URL{
+				Scheme: "https",
+				Host:   proxyHostnamePort,
+			}
 		}
-	} else {
-		transport = &http.Transport{
-			TLSClientConfig: tlsConfig,
-		}
+
+		log.Debug().Msgf("using proxy: %s", proxyURL.String())
+
+		transport.Proxy = http.ProxyURL(&proxyURL)
 	}
 
-	client := &http.Client{Transport: transport}
+	var client *http.Client
+
+	// If env variables are set, then client will pretty print some
+	// debug information to stdout using
+	printReq := os.Getenv("SUBMAN_DEBUG_PRINT_REQUEST")
+	printRes := os.Getenv("SUBMAN_DEBUG_PRINT_RESPONSE")
+	if printRes != "" || printReq != "" {
+		logger := &httpretty.Logger{
+			Time:            true,
+			TLS:             true,
+			RequestHeader:   printReq != "",
+			RequestBody:     printReq != "",
+			ResponseHeader:  printRes != "",
+			ResponseBody:    printRes != "",
+			Colors:          true,
+			Formatters:      []httpretty.Formatter{&httpretty.JSONFormatter{}},
+			MaxRequestBody:  1024 * 1024,
+			MaxResponseBody: 1024 * 1024,
+			SkipSanitize:    true,
+		}
+		roundTripper := logger.RoundTripper(transport)
+		client = &http.Client{Transport: roundTripper}
+	} else {
+		client = &http.Client{Transport: transport}
+	}
 
 	return client, nil
 }

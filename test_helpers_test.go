@@ -73,13 +73,13 @@ type TestingFileSystem struct {
 // setupTestingFiles tries to copy and generate testing files to testing directories
 func setupTestingFiles(
 	testingFileSystem *TestingFileSystem,
-	registered bool,
+	consumerCertInstalled bool,
 	entCertsInstalled bool,
 	prodCertsInstalled bool,
 	defaultProdCertsInstalled bool,
 ) error {
 
-	if registered {
+	if consumerCertInstalled {
 		// Copy consumer key to temporary directory
 		srcConsumerKeyFilePath := "./test/etc/pki/consumer/key.pem"
 		dstConsumerKeyFilePath := filepath.Join(testingFileSystem.ConsumerDirPath, "key.pem")
@@ -215,7 +215,7 @@ func setupTestingDirectories(tempDirFilePath string) (*TestingFileSystem, error)
 // that is fully installed
 func setupTestingFileSystem(
 	tempDirFilePath string,
-	registered bool,
+	consumerCertInstalled bool,
 	entCertsInstalled bool,
 	prodCertsInstalled bool,
 	defaultProdCertsInstalled bool,
@@ -225,7 +225,7 @@ func setupTestingFileSystem(
 		return nil, fmt.Errorf("unable to create testing directories: %s", err)
 	}
 
-	err = setupTestingFiles(testingFileSystem, registered, entCertsInstalled, prodCertsInstalled, defaultProdCertsInstalled)
+	err = setupTestingFiles(testingFileSystem, consumerCertInstalled, entCertsInstalled, prodCertsInstalled, defaultProdCertsInstalled)
 	if err != nil {
 		return nil, fmt.Errorf("unable to copy testing file to testing directories: %s", err)
 	}
