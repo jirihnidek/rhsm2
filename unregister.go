@@ -94,7 +94,7 @@ func (rhsmClient *RHSMClient) removeInstalledFiles() error {
 		}
 	}
 
-	if removedAll != true {
+	if removedAll {
 		return fmt.Errorf("unable to remove all installed files")
 	}
 	return nil
