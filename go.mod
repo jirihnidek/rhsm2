@@ -8,6 +8,7 @@ require (
 )
 
 require (
+	github.com/henvic/httpretty v0.1.2 // indirect
 	github.com/mattn/go-colorable v0.1.13 // indirect
 	github.com/mattn/go-isatty v0.0.19 // indirect
 	github.com/rs/zerolog v1.30.0 // indirect
