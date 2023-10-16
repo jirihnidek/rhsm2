@@ -43,7 +43,7 @@ func TestCreateHTTPsClientProxyFromConf(t *testing.T) {
 	tempDirFilePath := t.TempDir()
 
 	testingFiles, err := setupTestingFileSystem(
-		tempDirFilePath, true, false, false, false)
+		tempDirFilePath, false, true, false, false, false)
 	if err != nil {
 		t.Fatalf("unable to setup testing environment: %s", err)
 	}

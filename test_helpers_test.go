@@ -66,6 +66,8 @@ type TestingFileSystem struct {
 	EntitlementDirPath    string
 	ProductDirPath        string
 	ProductDefaultDirPath string
+	SyspurposeDirPath     string
+	SyspurposeFilePath    string
 	YumReposDirPath       string
 	YumRepoFilePath       string
 }
@@ -73,11 +75,23 @@ type TestingFileSystem struct {
 // setupTestingFiles tries to copy and generate testing files to testing directories
 func setupTestingFiles(
 	testingFileSystem *TestingFileSystem,
+	syspurposeFilesInstalled bool,
 	consumerCertInstalled bool,
 	entCertsInstalled bool,
 	prodCertsInstalled bool,
 	defaultProdCertsInstalled bool,
 ) error {
+	if syspurposeFilesInstalled {
+		// Copy syspurpose file to temporary directory
+		srcSyspurposeFilePath := "./test/etc/rhsm/syspurpose/syspurpose.json"
+		dstSyspurposeFilePath := filepath.Join(testingFileSystem.SyspurposeDirPath, "syspurpose.json")
+		err := copyFile(&srcSyspurposeFilePath, &dstSyspurposeFilePath)
+		if err != nil {
+			return fmt.Errorf(
+				"unable to create testing consumer key file: %s", err)
+		}
+		testingFileSystem.SyspurposeFilePath = dstSyspurposeFilePath
+	}
 
 	if consumerCertInstalled {
 		// Copy consumer key to temporary directory
@@ -164,49 +178,58 @@ func setupTestingDirectories(tempDirFilePath string) (*TestingFileSystem, error)
 	testingFileSystem.CACertDirPath = caCertDirPath
 
 	// Create temporary directory for consumer certificates
-	consumerDirFilePath := filepath.Join(tempDirFilePath, "etc/pki/consumer")
-	err = os.MkdirAll(consumerDirFilePath, 0755)
+	consumerDirPath := filepath.Join(tempDirFilePath, "etc/pki/consumer")
+	err = os.MkdirAll(consumerDirPath, 0755)
 	if err != nil && !os.IsExist(err) {
 		return nil, fmt.Errorf(
-			"unable to create temporary directory: %s: %s", consumerDirFilePath, err)
+			"unable to create temporary directory: %s: %s", consumerDirPath, err)
 	}
-	testingFileSystem.ConsumerDirPath = consumerDirFilePath
+	testingFileSystem.ConsumerDirPath = consumerDirPath
 
 	// Create temporary directory for entitlement certificates
-	entitlementDirFilePath := filepath.Join(tempDirFilePath, "etc/pki/entitlement")
-	err = os.MkdirAll(entitlementDirFilePath, 0755)
+	entitlementDirPath := filepath.Join(tempDirFilePath, "etc/pki/entitlement")
+	err = os.MkdirAll(entitlementDirPath, 0755)
 	if err != nil && !os.IsExist(err) {
 		return nil, fmt.Errorf(
-			"unable to create temporary directory: %s: %s", entitlementDirFilePath, err)
+			"unable to create temporary directory: %s: %s", entitlementDirPath, err)
 	}
-	testingFileSystem.EntitlementDirPath = entitlementDirFilePath
+	testingFileSystem.EntitlementDirPath = entitlementDirPath
 
 	// Create temporary directory for product certificates
-	productDirFilePath := filepath.Join(tempDirFilePath, "etc/pki/product")
-	err = os.MkdirAll(productDirFilePath, 0755)
+	productDirPath := filepath.Join(tempDirFilePath, "etc/pki/product")
+	err = os.MkdirAll(productDirPath, 0755)
 	if err != nil && !os.IsExist(err) {
 		return nil, fmt.Errorf(
-			"unable to create temporary directory: %s: %s", productDirFilePath, err)
+			"unable to create temporary directory: %s: %s", productDirPath, err)
 	}
-	testingFileSystem.ProductDirPath = productDirFilePath
+	testingFileSystem.ProductDirPath = productDirPath
 
 	// Create temporary directory for product certificates
-	productDefaultDirFilePath := filepath.Join(tempDirFilePath, "etc/pki/product-default")
-	err = os.MkdirAll(productDefaultDirFilePath, 0755)
+	productDefaultDirPath := filepath.Join(tempDirFilePath, "etc/pki/product-default")
+	err = os.MkdirAll(productDefaultDirPath, 0755)
 	if err != nil && !os.IsExist(err) {
 		return nil, fmt.Errorf(
-			"unable to create temporary directory: %s: %s", productDefaultDirFilePath, err)
+			"unable to create temporary directory: %s: %s", productDefaultDirPath, err)
 	}
-	testingFileSystem.ProductDefaultDirPath = productDefaultDirFilePath
+	testingFileSystem.ProductDefaultDirPath = productDefaultDirPath
+
+	// Create temporary directory for syspurpose configuration files
+	syspurposeDirPath := filepath.Join(tempDirFilePath, "etc/rhsm/syspurpose")
+	err = os.MkdirAll(syspurposeDirPath, 0755)
+	if err != nil && !os.IsExist(err) {
+		return nil, fmt.Errorf(
+			"unable to create temporary directory: %s: %s", syspurposeDirPath, err)
+	}
+	testingFileSystem.SyspurposeDirPath = syspurposeDirPath
 
 	// Create directory for redhat.repo
-	yumReposDirFilePath := filepath.Join(tempDirFilePath, "etc/yum.repos.d")
-	err = os.MkdirAll(yumReposDirFilePath, 0755)
+	yumReposDirPath := filepath.Join(tempDirFilePath, "etc/yum.repos.d")
+	err = os.MkdirAll(yumReposDirPath, 0755)
 	if err != nil && !os.IsExist(err) {
 		return nil, fmt.Errorf(
-			"unable to create temporary directory: %s: %s", yumReposDirFilePath, err)
+			"unable to create temporary directory: %s: %s", yumReposDirPath, err)
 	}
-	testingFileSystem.YumReposDirPath = yumReposDirFilePath
+	testingFileSystem.YumReposDirPath = yumReposDirPath
 
 	return &testingFileSystem, nil
 }
@@ -215,6 +238,7 @@ func setupTestingDirectories(tempDirFilePath string) (*TestingFileSystem, error)
 // that is fully installed
 func setupTestingFileSystem(
 	tempDirFilePath string,
+	syspurposeFilesInstalled bool,
 	consumerCertInstalled bool,
 	entCertsInstalled bool,
 	prodCertsInstalled bool,
@@ -225,7 +249,7 @@ func setupTestingFileSystem(
 		return nil, fmt.Errorf("unable to create testing directories: %s", err)
 	}
 
-	err = setupTestingFiles(testingFileSystem, consumerCertInstalled, entCertsInstalled, prodCertsInstalled, defaultProdCertsInstalled)
+	err = setupTestingFiles(testingFileSystem, syspurposeFilesInstalled, consumerCertInstalled, entCertsInstalled, prodCertsInstalled, defaultProdCertsInstalled)
 	if err != nil {
 		return nil, fmt.Errorf("unable to copy testing file to testing directories: %s", err)
 	}
@@ -250,7 +274,8 @@ func setupTestingRHSMClient(testingFiles *TestingFileSystem, server *httptest.Se
 
 	// Fill rhsm conf with fake data and temporary paths
 	rhsmClient.RHSMConf = &RHSMConf{
-		yumRepoFilePath: testingFiles.YumRepoFilePath,
+		yumRepoFilePath:    testingFiles.YumRepoFilePath,
+		syspurposeFilePath: testingFiles.SyspurposeFilePath,
 		Server: RHSMConfServer{
 			Hostname: hostname,
 			Port:     port,

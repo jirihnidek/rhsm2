@@ -17,7 +17,7 @@ type SysPurposeJSON struct {
 
 // getSystemPurpose tries to load system purpose from given file
 func getSystemPurpose(filePath *string) (*SysPurposeJSON, error) {
-	var sysPurpose = SysPurposeJSON{"", "", ""}
+	var sysPurpose SysPurposeJSON
 
 	sysPurposeContent, err := os.ReadFile(*filePath)
 	if err != nil {
@@ -30,4 +30,9 @@ func getSystemPurpose(filePath *string) (*SysPurposeJSON, error) {
 	}
 
 	return &sysPurpose, nil
+}
+
+// getDefaultSystemPurpose return structure with default values
+func getDefaultSystemPurpose() SysPurposeJSON {
+	return SysPurposeJSON{"", "", ""}
 }

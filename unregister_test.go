@@ -146,7 +146,7 @@ func TestUnregisterRegisteredSystem(t *testing.T) {
 	tempDirFilePath := t.TempDir()
 
 	testingFiles, err := setupTestingFileSystem(
-		tempDirFilePath, true, true, true, true)
+		tempDirFilePath, false, true, true, true, true)
 	if err != nil {
 		t.Fatalf("unable to setup testing environment: %s", err)
 	}
@@ -203,7 +203,7 @@ func TestUnregisterUnRegisteredSystem(t *testing.T) {
 	tempDirFilePath := t.TempDir()
 
 	testingFiles, err := setupTestingFileSystem(
-		tempDirFilePath, false, false, false, true)
+		tempDirFilePath, false, false, false, false, true)
 	if err != nil {
 		t.Fatalf("unable to setup testing environment: %s", err)
 	}
@@ -263,7 +263,7 @@ func TestUnregisterDeletedConsumer(t *testing.T) {
 	tempDirFilePath := t.TempDir()
 
 	testingFiles, err := setupTestingFileSystem(
-		tempDirFilePath, true, true, true, true)
+		tempDirFilePath, false, true, true, true, true)
 	if err != nil {
 		t.Fatalf("unable to setup testing environment: %s", err)
 	}
@@ -329,7 +329,7 @@ func TestUnregisterWrongConsumer(t *testing.T) {
 	tempDirFilePath := t.TempDir()
 
 	testingFiles, err := setupTestingFileSystem(
-		tempDirFilePath, true, true, true, true)
+		tempDirFilePath, false, true, true, true, true)
 	if err != nil {
 		t.Fatalf("unable to setup testing environment: %s", err)
 	}
@@ -391,7 +391,7 @@ func TestUnregisterInternalServerError(t *testing.T) {
 	tempDirFilePath := t.TempDir()
 
 	testingFiles, err := setupTestingFileSystem(
-		tempDirFilePath, true, true, true, true)
+		tempDirFilePath, false, true, true, true, true)
 	if err != nil {
 		t.Fatalf("unable to setup testing environment: %s", err)
 	}

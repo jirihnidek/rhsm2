@@ -66,7 +66,7 @@ func TestGetServerStatus(t *testing.T) {
 	// Setup filesystem for the case, when system is only registered,
 	// but no entitlement cert/key has been installed yet
 	testingFiles, err := setupTestingFileSystem(
-		tempDirFilePath, false, false, false, true)
+		tempDirFilePath, false, false, false, false, true)
 	if err != nil {
 		t.Fatalf("unable to setup testing environment: %s", err)
 	}
@@ -131,7 +131,7 @@ func TestGetServerStatusInternalServerError(t *testing.T) {
 	// Setup filesystem for the case, when system is only registered,
 	// but no entitlement cert/key has been installed yet
 	testingFiles, err := setupTestingFileSystem(
-		tempDirFilePath, false, false, false, true)
+		tempDirFilePath, false, false, false, false, true)
 	if err != nil {
 		t.Fatalf("unable to setup testing environment: %s", err)
 	}

@@ -82,7 +82,7 @@ func TestWriteRepoFile(t *testing.T) {
 	tempDirFilePath := t.TempDir()
 
 	testingFiles, err := setupTestingFileSystem(
-		tempDirFilePath, true, true, true, true)
+		tempDirFilePath, false, true, true, true, true)
 	if err != nil {
 		t.Fatalf("unable to setup testing environment: %s", err)
 	}
@@ -115,7 +115,7 @@ func TestWriteRepoFileNoEntCert(t *testing.T) {
 	tempDirFilePath := t.TempDir()
 
 	testingFiles, err := setupTestingFileSystem(
-		tempDirFilePath, true, false, true, true)
+		tempDirFilePath, false, true, false, true, true)
 	if err != nil {
 		t.Fatalf("unable to setup testing environment: %s", err)
 	}

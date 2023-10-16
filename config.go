@@ -73,8 +73,11 @@ type RHSMConf struct {
 	// filePath is file path of configuration file
 	filePath string
 
-	// yumRepoFilePath is path
+	// yumRepoFilePath is file path to redhat.repo
 	yumRepoFilePath string
+
+	// syspurposeFilePath is file path to syspurpose.json file
+	syspurposeFilePath string
 
 	// Server represents section [server]
 	Server RHSMConfServer `ini:"server"`
@@ -171,8 +174,9 @@ func IsValueAllowed(value *reflect.Value, allowedValues *string) (bool, error) {
 // RHSMConf structure
 func LoadRHSMConf(confFilePath string) (*RHSMConf, error) {
 	rhsmConf := &RHSMConf{
-		filePath:        confFilePath,
-		yumRepoFilePath: DefaultRepoFilePath,
+		filePath:           confFilePath,
+		yumRepoFilePath:    DefaultRepoFilePath,
+		syspurposeFilePath: DefaultSystemPurposeFilePath,
 	}
 
 	err := rhsmConf.load()

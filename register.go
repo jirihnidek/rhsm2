@@ -175,10 +175,13 @@ func (rhsmClient *RHSMClient) registerSystem(
 		return nil, fmt.Errorf("unable to get hostname: %s", err)
 	}
 
-	var defaultSyspurposeFilePath = DefaultSystemPurposeFilePath
-	sysPurpose, err := getSystemPurpose(&defaultSyspurposeFilePath)
+	var sysPurpose *SysPurposeJSON
+	sysPurpose, err = getSystemPurpose(&rhsmClient.RHSMConf.syspurposeFilePath)
 	if err != nil {
-		return nil, err
+		log.Warn().Msgf("unable to read syspurpose: %s", err)
+		defaultSysPurpose := getDefaultSystemPurpose()
+		sysPurpose = &defaultSysPurpose
+		log.Info().Msgf("using default syspurpose values")
 	}
 
 	installedProducts := rhsmClient.getInstalledProducts()
