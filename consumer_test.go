@@ -20,7 +20,7 @@ func TestGetConsumerUUID(t *testing.T) {
 	tempDirFilePath := t.TempDir()
 
 	testingFiles, err := setupTestingFileSystem(
-		tempDirFilePath, true, false, false, true)
+		tempDirFilePath, false, true, false, false, true)
 	if err != nil {
 		t.Fatalf("unable to setup testing environment: %s", err)
 	}
@@ -54,7 +54,7 @@ func TestGetOwner(t *testing.T) {
 	tempDirFilePath := t.TempDir()
 
 	testingFiles, err := setupTestingFileSystem(
-		tempDirFilePath, true, false, false, true)
+		tempDirFilePath, false, true, false, false, true)
 	if err != nil {
 		t.Fatalf("unable to setup testing environment: %s", err)
 	}

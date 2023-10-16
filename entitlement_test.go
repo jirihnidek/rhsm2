@@ -66,7 +66,7 @@ func TestGetEntitlementCertificate(t *testing.T) {
 	// Setup filesystem for the case, when system is only registered,
 	// but no entitlement cert/key has been installed yet
 	testingFiles, err := setupTestingFileSystem(
-		tempDirFilePath, true, false, false, true)
+		tempDirFilePath, false, true, false, false, true)
 	if err != nil {
 		t.Fatalf("unable to setup testing environment: %s", err)
 	}
@@ -164,7 +164,7 @@ func TestGetEntitlementCertificateWrongConsumerUUID(t *testing.T) {
 	// Setup filesystem for the case, when system is only registered,
 	// but no entitlement cert/key has been installed yet
 	testingFiles, err := setupTestingFileSystem(
-		tempDirFilePath, true, false, false, true)
+		tempDirFilePath, false, true, false, false, true)
 	if err != nil {
 		t.Fatalf("unable to setup testing environment: %s", err)
 	}
@@ -220,7 +220,7 @@ func TestGetEntitlementCertificateDeletedConsumerUUID(t *testing.T) {
 	// Setup filesystem for the case, when system is only registered,
 	// but no entitlement cert/key has been installed yet
 	testingFiles, err := setupTestingFileSystem(
-		tempDirFilePath, true, false, false, true)
+		tempDirFilePath, false, true, false, false, true)
 	if err != nil {
 		t.Fatalf("unable to setup testing environment: %s", err)
 	}
@@ -276,7 +276,7 @@ func TestGetEntitlementCertificateInternalServerError(t *testing.T) {
 	// Setup filesystem for the case, when system is only registered,
 	// but no entitlement cert/key has been installed yet
 	testingFiles, err := setupTestingFileSystem(
-		tempDirFilePath, true, false, false, true)
+		tempDirFilePath, false, true, false, false, true)
 	if err != nil {
 		t.Fatalf("unable to setup testing environment: %s", err)
 	}

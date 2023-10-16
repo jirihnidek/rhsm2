@@ -150,7 +150,7 @@ func TestRegisterUsernamePasswordOrg(t *testing.T) {
 	tempDirFilePath := t.TempDir()
 
 	testingFiles, err := setupTestingFileSystem(
-		tempDirFilePath, false, false, false, true)
+		tempDirFilePath, true, false, false, false, true)
 	if err != nil {
 		t.Fatalf("unable to setup testing environment: %s", err)
 	}

@@ -22,7 +22,7 @@ func TestReadAllProductCertificates(t *testing.T) {
 	tempDirFilePath := t.TempDir()
 
 	testingFiles, err := setupTestingFileSystem(
-		tempDirFilePath, true, true, true, true)
+		tempDirFilePath, false, true, true, true, true)
 	if err != nil {
 		t.Fatalf("unable to setup testing environment: %s", err)
 	}
@@ -60,7 +60,7 @@ func TestReadAllProductCertificatesNoInstalled(t *testing.T) {
 	tempDirFilePath := t.TempDir()
 
 	testingFiles, err := setupTestingFileSystem(
-		tempDirFilePath, false, false, false, true)
+		tempDirFilePath, false, false, false, false, true)
 	if err != nil {
 		t.Fatalf("unable to setup testing environment: %s", err)
 	}
@@ -96,7 +96,7 @@ func TestReadNoProductCertificates(t *testing.T) {
 	tempDirFilePath := t.TempDir()
 
 	testingFiles, err := setupTestingFileSystem(
-		tempDirFilePath, false, false, false, false)
+		tempDirFilePath, false, false, false, false, false)
 	if err != nil {
 		t.Fatalf("unable to setup testing environment: %s", err)
 	}
