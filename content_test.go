@@ -9,7 +9,7 @@ import (
 // TestGetContentFromEntCert tests the case, when content is successfully loaded
 // from entitlement certificate
 func TestGetContentFromEntCert(t *testing.T) {
-	filePath := "test/etc/pki/entitlement/6490061114713729830.pem"
+	filePath := "testdata/etc/pki/entitlement/6490061114713729830.pem"
 	engineeringProducts, err := getContentFromEntCertFile(&filePath)
 	if err != nil {
 		t.Fatalf("unable to get engineering products from file: %s: %s", filePath, err)

@@ -83,7 +83,7 @@ func setupTestingFiles(
 ) error {
 	if syspurposeFilesInstalled {
 		// Copy syspurpose file to temporary directory
-		srcSyspurposeFilePath := "./test/etc/rhsm/syspurpose/syspurpose.json"
+		srcSyspurposeFilePath := "./testdata/etc/rhsm/syspurpose/syspurpose.json"
 		dstSyspurposeFilePath := filepath.Join(testingFileSystem.SyspurposeDirPath, "syspurpose.json")
 		err := copyFile(&srcSyspurposeFilePath, &dstSyspurposeFilePath)
 		if err != nil {
@@ -95,7 +95,7 @@ func setupTestingFiles(
 
 	if consumerCertInstalled {
 		// Copy consumer key to temporary directory
-		srcConsumerKeyFilePath := "./test/etc/pki/consumer/key.pem"
+		srcConsumerKeyFilePath := "./testdata/etc/pki/consumer/key.pem"
 		dstConsumerKeyFilePath := filepath.Join(testingFileSystem.ConsumerDirPath, "key.pem")
 		err := copyFile(&srcConsumerKeyFilePath, &dstConsumerKeyFilePath)
 		if err != nil {
@@ -103,7 +103,7 @@ func setupTestingFiles(
 				"unable to create testing consumer key file: %s", err)
 		}
 		// Copy consumer cert to temporary directory
-		srcConsumerCertFilePath := "test/etc/pki/consumer/cert.pem"
+		srcConsumerCertFilePath := "testdata/etc/pki/consumer/cert.pem"
 		dstConsumerCertFilePath := filepath.Join(testingFileSystem.ConsumerDirPath, "cert.pem")
 		err = copyFile(&srcConsumerCertFilePath, &dstConsumerCertFilePath)
 		if err != nil {
@@ -114,7 +114,7 @@ func setupTestingFiles(
 
 	if entCertsInstalled {
 		// Copy entitlement key to temporary directory
-		srcEntitlementKeyFilePath := "./test/etc/pki/entitlement/6490061114713729830-key.pem"
+		srcEntitlementKeyFilePath := "./testdata/etc/pki/entitlement/6490061114713729830-key.pem"
 		dstEntitlementKeyFilePath := filepath.Join(testingFileSystem.EntitlementDirPath, "6490061114713729830-key.pem")
 		err := copyFile(&srcEntitlementKeyFilePath, &dstEntitlementKeyFilePath)
 		if err != nil {
@@ -122,7 +122,7 @@ func setupTestingFiles(
 				"unable to create testing entitlement key file: %s", err)
 		}
 		// Copy entitlement cert to temporary directory
-		srcEntitlementCertFilePath := "./test/etc/pki/entitlement/6490061114713729830.pem"
+		srcEntitlementCertFilePath := "./testdata/etc/pki/entitlement/6490061114713729830.pem"
 		dstEntitlementCertFilePath := filepath.Join(testingFileSystem.EntitlementDirPath, "6490061114713729830.pem")
 		err = copyFile(&srcEntitlementCertFilePath, &dstEntitlementCertFilePath)
 		if err != nil {
@@ -132,7 +132,7 @@ func setupTestingFiles(
 
 	// Copy product cert to temporary directory
 	if prodCertsInstalled {
-		srcProductCertFilePath := "./test/etc/pki/product/900.pem"
+		srcProductCertFilePath := "./testdata/etc/pki/product/900.pem"
 		dstProductCertFilePath := filepath.Join(testingFileSystem.ProductDirPath, "900.pem")
 		err := copyFile(&srcProductCertFilePath, &dstProductCertFilePath)
 		if err != nil {
@@ -145,7 +145,7 @@ func setupTestingFiles(
 	// but there are other Linux distributions without preinstalled product certificates
 	// like Fedora or Centos Stream
 	if defaultProdCertsInstalled {
-		srcDefaultProductCertFilePath := "./test/etc/pki/product-default/5050.pem"
+		srcDefaultProductCertFilePath := "./testdata/etc/pki/product-default/5050.pem"
 		dstDefaultProductCertFilePath := filepath.Join(testingFileSystem.ProductDefaultDirPath, "5050.pem")
 		err := copyFile(&srcDefaultProductCertFilePath, &dstDefaultProductCertFilePath)
 		if err != nil {
