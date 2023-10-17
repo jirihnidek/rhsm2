@@ -5,7 +5,7 @@ import "testing"
 // TestCreateRHSMClient test the case, when client is
 // successfully created using given configuration file
 func TestCreateRHSMClient(t *testing.T) {
-	confFilePath := "./test/etc/rhsm/rhsm.conf"
+	confFilePath := "./testdata/etc/rhsm/rhsm.conf"
 
 	rhsmClient, err := CreateRHSMClient(&confFilePath)
 
@@ -14,13 +14,13 @@ func TestCreateRHSMClient(t *testing.T) {
 	} else {
 
 		consumerCertPath := rhsmClient.consumerCertPath()
-		if *consumerCertPath != "test/etc/pki/consumer/cert.pem" {
-			t.Fatalf("consumer cert file path: '%s' != 'test/pki/consumer/cert.pem'", *consumerCertPath)
+		if *consumerCertPath != "testdata/etc/pki/consumer/cert.pem" {
+			t.Fatalf("consumer cert file path: '%s' != 'testdata/pki/consumer/cert.pem'", *consumerCertPath)
 		}
 
 		consumerKeyPath := rhsmClient.consumerKeyPath()
-		if *consumerKeyPath != "test/etc/pki/consumer/key.pem" {
-			t.Fatalf("consumer key file path: '%s' != 'test/pki/consumer/key.pem'", *consumerKeyPath)
+		if *consumerKeyPath != "testdata/etc/pki/consumer/key.pem" {
+			t.Fatalf("consumer key file path: '%s' != 'testdata/pki/consumer/key.pem'", *consumerKeyPath)
 		}
 
 		if rhsmClient.NoAuthConnection == nil {

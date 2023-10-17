@@ -9,7 +9,7 @@ import (
 // TestGetSystemPurpose tests the case, when system purpose is
 // successfully read from configuration file
 func TestGetSystemPurpose(t *testing.T) {
-	var syspurposeFilePath = "./test/etc/rhsm/syspurpose/syspurpose.json"
+	var syspurposeFilePath = "./testdata/etc/rhsm/syspurpose/syspurpose.json"
 	syspurpose, err := getSystemPurpose(&syspurposeFilePath)
 	if err != nil {
 		t.Fatalf("reading of %s failed with error: %s", syspurposeFilePath, err)
@@ -34,7 +34,7 @@ func TestGetSystemPurpose(t *testing.T) {
 // TestMissingSystemPurposeFile test the case, when wrong path is provided
 // or syspurpose.json file is missing
 func TestMissingSystemPurposeFile(t *testing.T) {
-	var wrongFilePath = "./test/wrong/file/path/syspurpose.json"
+	var wrongFilePath = "./testdata/wrong/file/path/syspurpose.json"
 	syspurpose, err := getSystemPurpose(&wrongFilePath)
 	if err == nil {
 		t.Fatalf("no error returned, when wrong file path: %s provided", wrongFilePath)
