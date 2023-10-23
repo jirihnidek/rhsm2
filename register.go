@@ -276,6 +276,8 @@ func (rhsmClient *RHSMClient) registerSystem(
 		return nil, err
 	}
 
+	// TODO: send signal to virt-who
+
 	// When we are in SCA mode, then we can get entitlement cert(s) and generate content
 	if consumerData.Owner.ContentAccessMode == "org_environment" {
 		err = rhsmClient.enableContent()

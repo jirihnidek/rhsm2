@@ -8,7 +8,7 @@ import (
 	"testing"
 )
 
-const response200 = `
+const entCertKeyList = `
 [ {
   "created" : "2023-10-04T07:42:10+0000",
   "updated" : "2023-10-04T07:42:10+0000",
@@ -56,7 +56,7 @@ func TestGetEntitlementCertificate(t *testing.T) {
 			// Add some headers specific for candlepin server
 			rw.Header().Add("x-candlepin-request-uuid", "168e3687-8498-46b2-af0a-272583d4d4ba")
 			// Return empty body
-			_, _ = rw.Write([]byte(response200))
+			_, _ = rw.Write([]byte(entCertKeyList))
 		}))
 	defer server.Close()
 
@@ -116,13 +116,6 @@ func TestGetEntitlementCertificate(t *testing.T) {
 		t.Fatalf("expected entitlement key: %s is not installed: %s", expectedEntKeyFilePath, err)
 	}
 }
-
-const response404 = `
-{
-  "displayMessage": "Consumer with this UUID could not be found.",
-  "requestUuid": "c4347004-8792-41fe-a4d8-fccaa0d3898a"
-}
-`
 
 // TestGetEntitlementCertificateWrongConsumerUUID test the case, when wrong Consumer UUID
 // is used.
@@ -206,11 +199,11 @@ func TestGetEntitlementCertificateDeletedConsumerUUID(t *testing.T) {
 			}
 
 			// Return code 410
-			rw.WriteHeader(404)
+			rw.WriteHeader(410)
 			// Add some headers specific for candlepin server
 			rw.Header().Add("x-candlepin-request-uuid", "168e3687-8498-46b2-af0a-272583d4d4ba")
 			// Return JSON document with error
-			_, _ = rw.Write([]byte(consumerAlreadyDeleted))
+			_, _ = rw.Write([]byte(response410))
 		}))
 	defer server.Close()
 
@@ -266,7 +259,7 @@ func TestGetEntitlementCertificateInternalServerError(t *testing.T) {
 			// Add some headers specific for candlepin server
 			rw.Header().Add("x-candlepin-request-uuid", "168e3687-8498-46b2-af0a-272583d4d4ba")
 			// Return JSON document with error
-			_, _ = rw.Write([]byte(internalServerError))
+			_, _ = rw.Write([]byte(response500))
 		}))
 	defer server.Close()
 
