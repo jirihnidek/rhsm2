@@ -255,7 +255,7 @@ func TestUnregisterDeletedConsumer(t *testing.T) {
 			// Add some headers specific for candlepin server
 			rw.Header().Add("x-candlepin-request-uuid", "168e3687-8498-46b2-af0a-272583d4d4ba")
 			// Return JSON document with error
-			_, _ = rw.Write([]byte(consumerAlreadyDeleted))
+			_, _ = rw.Write([]byte(response410))
 		}))
 	defer server.Close()
 
@@ -284,11 +284,6 @@ func TestUnregisterDeletedConsumer(t *testing.T) {
 
 	helperTestInstalledFilesRemoved(t, testingFiles)
 }
-
-const insufficientPermissions = `{
-  "displayMessage": "Consumer could not be deleted due to insufficient permissions.",
-  "requestUuid": "c4347004-8792-41fe-a4d8-fccaa0d3898a"
-}`
 
 // TestUnregisterWrongConsumer tries to test unregistering of registered system
 // using function RHSMClient.Unregister(). This case is focused on the case, when
@@ -321,7 +316,7 @@ func TestUnregisterWrongConsumer(t *testing.T) {
 			// Add some headers specific for candlepin server
 			rw.Header().Add("x-candlepin-request-uuid", "168e3687-8498-46b2-af0a-272583d4d4ba")
 			// Return JSON document with error
-			_, _ = rw.Write([]byte(insufficientPermissions))
+			_, _ = rw.Write([]byte(response403))
 		}))
 	defer server.Close()
 
@@ -383,7 +378,7 @@ func TestUnregisterInternalServerError(t *testing.T) {
 			// Add some headers specific for candlepin server
 			rw.Header().Add("x-candlepin-request-uuid", "168e3687-8498-46b2-af0a-272583d4d4ba")
 			// Return JSON document with error
-			_, _ = rw.Write([]byte(internalServerError))
+			_, _ = rw.Write([]byte(response500))
 		}))
 	defer server.Close()
 

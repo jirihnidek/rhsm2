@@ -49,7 +49,6 @@ func (rhsmClient *RHSMClient) GetContentOverrides() ([]ContentOverride, error) {
 		if err != nil {
 			return nil, err
 		}
-		return contentOverrides, nil
 	case 403:
 		log.Error().Msgf("insufficient permissions")
 		return nil, fmt.Errorf("unable to get content overrides")

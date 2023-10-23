@@ -121,7 +121,7 @@ func TestGetServerStatusInternalServerError(t *testing.T) {
 			// Add some headers specific for candlepin server
 			rw.Header().Add("x-candlepin-request-uuid", "168e3687-8498-46b2-af0a-272583d4d4ba")
 			// Return empty body
-			_, _ = rw.Write([]byte(internalServerError))
+			_, _ = rw.Write([]byte(response500))
 		}))
 	defer server.Close()
 

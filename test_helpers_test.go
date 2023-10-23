@@ -9,17 +9,27 @@ import (
 	"path/filepath"
 )
 
-// This is JSON document returned by candlepin in body of response,
-// when status code is 410
-const consumerAlreadyDeleted = `{
+// Here is set of JSON documents returned by candlepin server in body of response,
+// when something unusual happens
+
+const response403 = `{
+  "displayMessage": "Consumer could not be deleted due to insufficient permissions.",
+  "requestUuid": "c4347004-8792-41fe-a4d8-fccaa0d3898a"
+}`
+
+const response404 = `{
+  "displayMessage": "Consumer with this UUID could not be found.",
+  "requestUuid": "c4347004-8792-41fe-a4d8-fccaa0d3898a"
+}
+`
+
+const response410 = `{
   "displayMessage": "Consumer with 5e9745d5-624d-4af1-916e-2c17df4eb4e8 is already deleted.",
   "requestUuid": "c4347004-8792-41fe-a4d8-fccaa0d3898a"
   "deletedId": "5e9745d5-624d-4af1-916e-2c17df4eb4e8"
 }`
 
-// This is JSON document returned by candlepin in body of response,
-// when status code is 500
-const internalServerError = `{
+const response500 = `{
   "displayMessage": "An unexpected exception has occurred",
   "requestUuid": "c4347004-8792-41fe-a4d8-fccaa0d3898a"
 }`
