@@ -3,6 +3,7 @@ package rhsm2
 import (
 	"fmt"
 	"io"
+	"io/fs"
 	"net/http/httptest"
 	"net/url"
 	"os"
@@ -50,7 +51,7 @@ func isDirEmpty(name *string) (bool, error) {
 }
 
 // copyFile tries to copy file
-func copyFile(srcFilePath *string, dstFilePath *string) error {
+func copyFile(srcFilePath *string, dstFilePath *string, perm *os.FileMode) error {
 	pemIn, err := os.Open(*srcFilePath)
 	if err != nil {
 		return fmt.Errorf("unable to open file: %s: %s", *srcFilePath, err)
@@ -64,6 +65,13 @@ func copyFile(srcFilePath *string, dstFilePath *string) error {
 	_, err = io.Copy(pemOut, pemIn)
 	if err != nil {
 		return fmt.Errorf("unable to copy %s to %s: %s", *srcFilePath, *dstFilePath, err)
+	}
+
+	if perm != nil {
+		err = os.Chmod(*dstFilePath, *perm)
+		if err != nil {
+			return fmt.Errorf("unable to change mode to file %s : %s", *dstFilePath, err)
+		}
 	}
 	return nil
 }
@@ -90,12 +98,13 @@ func setupTestingFiles(
 	entCertsInstalled bool,
 	prodCertsInstalled bool,
 	defaultProdCertsInstalled bool,
+	perm *os.FileMode,
 ) error {
 	if syspurposeFilesInstalled {
 		// Copy syspurpose file to temporary directory
 		srcSyspurposeFilePath := "./testdata/etc/rhsm/syspurpose/syspurpose.json"
 		dstSyspurposeFilePath := filepath.Join(testingFileSystem.SyspurposeDirPath, "syspurpose.json")
-		err := copyFile(&srcSyspurposeFilePath, &dstSyspurposeFilePath)
+		err := copyFile(&srcSyspurposeFilePath, &dstSyspurposeFilePath, perm)
 		if err != nil {
 			return fmt.Errorf(
 				"unable to create testing consumer key file: %s", err)
@@ -107,7 +116,7 @@ func setupTestingFiles(
 		// Copy consumer key to temporary directory
 		srcConsumerKeyFilePath := "./testdata/etc/pki/consumer/key.pem"
 		dstConsumerKeyFilePath := filepath.Join(testingFileSystem.ConsumerDirPath, "key.pem")
-		err := copyFile(&srcConsumerKeyFilePath, &dstConsumerKeyFilePath)
+		err := copyFile(&srcConsumerKeyFilePath, &dstConsumerKeyFilePath, perm)
 		if err != nil {
 			return fmt.Errorf(
 				"unable to create testing consumer key file: %s", err)
@@ -115,7 +124,7 @@ func setupTestingFiles(
 		// Copy consumer cert to temporary directory
 		srcConsumerCertFilePath := "testdata/etc/pki/consumer/cert.pem"
 		dstConsumerCertFilePath := filepath.Join(testingFileSystem.ConsumerDirPath, "cert.pem")
-		err = copyFile(&srcConsumerCertFilePath, &dstConsumerCertFilePath)
+		err = copyFile(&srcConsumerCertFilePath, &dstConsumerCertFilePath, perm)
 		if err != nil {
 			return fmt.Errorf(
 				"unable to create testing consumer cert file: %s", err)
@@ -126,7 +135,7 @@ func setupTestingFiles(
 		// Copy entitlement key to temporary directory
 		srcEntitlementKeyFilePath := "./testdata/etc/pki/entitlement/6490061114713729830-key.pem"
 		dstEntitlementKeyFilePath := filepath.Join(testingFileSystem.EntitlementDirPath, "6490061114713729830-key.pem")
-		err := copyFile(&srcEntitlementKeyFilePath, &dstEntitlementKeyFilePath)
+		err := copyFile(&srcEntitlementKeyFilePath, &dstEntitlementKeyFilePath, perm)
 		if err != nil {
 			return fmt.Errorf(
 				"unable to create testing entitlement key file: %s", err)
@@ -134,7 +143,7 @@ func setupTestingFiles(
 		// Copy entitlement cert to temporary directory
 		srcEntitlementCertFilePath := "./testdata/etc/pki/entitlement/6490061114713729830.pem"
 		dstEntitlementCertFilePath := filepath.Join(testingFileSystem.EntitlementDirPath, "6490061114713729830.pem")
-		err = copyFile(&srcEntitlementCertFilePath, &dstEntitlementCertFilePath)
+		err = copyFile(&srcEntitlementCertFilePath, &dstEntitlementCertFilePath, perm)
 		if err != nil {
 			return fmt.Errorf("unable to create testing entitlement cert file: %s", err)
 		}
@@ -144,7 +153,7 @@ func setupTestingFiles(
 	if prodCertsInstalled {
 		srcProductCertFilePath := "./testdata/etc/pki/product/900.pem"
 		dstProductCertFilePath := filepath.Join(testingFileSystem.ProductDirPath, "900.pem")
-		err := copyFile(&srcProductCertFilePath, &dstProductCertFilePath)
+		err := copyFile(&srcProductCertFilePath, &dstProductCertFilePath, perm)
 		if err != nil {
 			return fmt.Errorf("unable to create testing product cert file: %s", err)
 		}
@@ -157,7 +166,7 @@ func setupTestingFiles(
 	if defaultProdCertsInstalled {
 		srcDefaultProductCertFilePath := "./testdata/etc/pki/product-default/5050.pem"
 		dstDefaultProductCertFilePath := filepath.Join(testingFileSystem.ProductDefaultDirPath, "5050.pem")
-		err := copyFile(&srcDefaultProductCertFilePath, &dstDefaultProductCertFilePath)
+		err := copyFile(&srcDefaultProductCertFilePath, &dstDefaultProductCertFilePath, perm)
 		if err != nil {
 			return fmt.Errorf("unable to create testing default product cert file: %s", err)
 		}
@@ -174,74 +183,108 @@ func setupTestingFiles(
 	return nil
 }
 
+// createDirectory creates one directory for testing from given path of temporary
+// directory and path to some directory.
+func createDirectory(tempDirFilePath string, dirPath string, perm os.FileMode) (*string, error) {
+	fullDirPath := filepath.Join(tempDirFilePath, dirPath)
+	err := os.MkdirAll(fullDirPath, perm)
+	if err != nil && !os.IsExist(err) {
+		return nil, fmt.Errorf(
+			"unable to create temporary directory: %s: %s", fullDirPath, err)
+	}
+	return &fullDirPath, nil
+}
+
 // setupTestingDirectories tries to set up directories for testing filesystem
-func setupTestingDirectories(tempDirFilePath string) (*TestingFileSystem, error) {
+func setupTestingDirectories(tempDirFilePath string, perm os.FileMode) (*TestingFileSystem, error) {
 	testingFileSystem := TestingFileSystem{}
 
 	// Create temporary directory for CA certificate
-	caCertDirPath := filepath.Join(tempDirFilePath, "etc/rhsm/ca")
-	err := os.MkdirAll(caCertDirPath, 0755)
-	if err != nil && !os.IsExist(err) {
-		return nil, fmt.Errorf(
-			"unable to create temporary directory: %s: %s", caCertDirPath, err)
+	caCertDirPath, err := createDirectory(tempDirFilePath, "etc/rhsm/ca", perm)
+	if err != nil {
+		return nil, err
 	}
-	testingFileSystem.CACertDirPath = caCertDirPath
+	testingFileSystem.CACertDirPath = *caCertDirPath
 
 	// Create temporary directory for consumer certificates
-	consumerDirPath := filepath.Join(tempDirFilePath, "etc/pki/consumer")
-	err = os.MkdirAll(consumerDirPath, 0755)
-	if err != nil && !os.IsExist(err) {
-		return nil, fmt.Errorf(
-			"unable to create temporary directory: %s: %s", consumerDirPath, err)
+	consumerDirPath, err := createDirectory(tempDirFilePath, "etc/pki/consumer", perm)
+	if err != nil {
+		return nil, err
 	}
-	testingFileSystem.ConsumerDirPath = consumerDirPath
+	testingFileSystem.ConsumerDirPath = *consumerDirPath
 
 	// Create temporary directory for entitlement certificates
-	entitlementDirPath := filepath.Join(tempDirFilePath, "etc/pki/entitlement")
-	err = os.MkdirAll(entitlementDirPath, 0755)
-	if err != nil && !os.IsExist(err) {
-		return nil, fmt.Errorf(
-			"unable to create temporary directory: %s: %s", entitlementDirPath, err)
+	entitlementDirPath, err := createDirectory(tempDirFilePath, "etc/pki/entitlement", perm)
+	if err != nil {
+		return nil, err
 	}
-	testingFileSystem.EntitlementDirPath = entitlementDirPath
+	testingFileSystem.EntitlementDirPath = *entitlementDirPath
 
 	// Create temporary directory for product certificates
-	productDirPath := filepath.Join(tempDirFilePath, "etc/pki/product")
-	err = os.MkdirAll(productDirPath, 0755)
-	if err != nil && !os.IsExist(err) {
-		return nil, fmt.Errorf(
-			"unable to create temporary directory: %s: %s", productDirPath, err)
+	productDirPath, err := createDirectory(tempDirFilePath, "etc/pki/product", perm)
+	if err != nil {
+		return nil, err
 	}
-	testingFileSystem.ProductDirPath = productDirPath
+	testingFileSystem.ProductDirPath = *productDirPath
 
 	// Create temporary directory for product certificates
-	productDefaultDirPath := filepath.Join(tempDirFilePath, "etc/pki/product-default")
-	err = os.MkdirAll(productDefaultDirPath, 0755)
-	if err != nil && !os.IsExist(err) {
-		return nil, fmt.Errorf(
-			"unable to create temporary directory: %s: %s", productDefaultDirPath, err)
+	productDefaultDirPath, err := createDirectory(tempDirFilePath, "etc/pki/product-default", perm)
+	if err != nil {
+		return nil, err
 	}
-	testingFileSystem.ProductDefaultDirPath = productDefaultDirPath
+	testingFileSystem.ProductDefaultDirPath = *productDefaultDirPath
 
 	// Create temporary directory for syspurpose configuration files
-	syspurposeDirPath := filepath.Join(tempDirFilePath, "etc/rhsm/syspurpose")
-	err = os.MkdirAll(syspurposeDirPath, 0755)
-	if err != nil && !os.IsExist(err) {
-		return nil, fmt.Errorf(
-			"unable to create temporary directory: %s: %s", syspurposeDirPath, err)
+	syspurposeDirPath, err := createDirectory(tempDirFilePath, "etc/rhsm/syspurpose", perm)
+	if err != nil {
+		return nil, err
 	}
-	testingFileSystem.SyspurposeDirPath = syspurposeDirPath
+	testingFileSystem.SyspurposeDirPath = *syspurposeDirPath
 
 	// Create directory for redhat.repo
-	yumReposDirPath := filepath.Join(tempDirFilePath, "etc/yum.repos.d")
-	err = os.MkdirAll(yumReposDirPath, 0755)
-	if err != nil && !os.IsExist(err) {
-		return nil, fmt.Errorf(
-			"unable to create temporary directory: %s: %s", yumReposDirPath, err)
+	yumReposDirPath, err := createDirectory(tempDirFilePath, "etc/yum.repos.d", perm)
+	if err != nil {
+		return nil, err
 	}
-	testingFileSystem.YumReposDirPath = yumReposDirPath
+	testingFileSystem.YumReposDirPath = *yumReposDirPath
 
 	return &testingFileSystem, nil
+}
+
+// setupTestingReadWriteDirectories tries to set up directories for testing filesystem
+// Current user can read and write all directories
+func setupTestingReadWriteDirectories(tempDirFilePath string) (*TestingFileSystem, error) {
+	return setupTestingDirectories(tempDirFilePath, 0755)
+}
+
+// fixPermissionsOfDirsAndFiles tries to set permission to
+func fixPermissionsOfDirsAndFiles(tempDirFilePath string) error {
+	err := filepath.WalkDir(tempDirFilePath, func(path string, dir fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if dir.IsDir() {
+			return os.Chmod(path, 0755)
+		} else {
+			return os.Chmod(path, 0644)
+		}
+	})
+	if err != nil {
+		return fmt.Errorf("unable to make file system read-write again: %s", err)
+	}
+	return nil
+}
+
+// ChmodReadOnlyDirsAndFiles tries to set all files and directories read-only
+func ChmodReadOnlyDirsAndFiles(path string, dir fs.DirEntry, err error) error {
+	if err != nil {
+		return fmt.Errorf("unable to access path %s: %s", path, err)
+	}
+	if dir.IsDir() {
+		return os.Chmod(path, 0555)
+	} else {
+		return os.Chmod(path, 0444)
+	}
 }
 
 // setupTestingFileSystem tries to set up directories and files for testing and mock system
@@ -254,14 +297,42 @@ func setupTestingFileSystem(
 	prodCertsInstalled bool,
 	defaultProdCertsInstalled bool,
 ) (*TestingFileSystem, error) {
-	testingFileSystem, err := setupTestingDirectories(tempDirFilePath)
+	testingFileSystem, err := setupTestingReadWriteDirectories(tempDirFilePath)
 	if err != nil {
 		return nil, fmt.Errorf("unable to create testing directories: %s", err)
 	}
 
-	err = setupTestingFiles(testingFileSystem, syspurposeFilesInstalled, consumerCertInstalled, entCertsInstalled, prodCertsInstalled, defaultProdCertsInstalled)
+	err = setupTestingFiles(testingFileSystem, syspurposeFilesInstalled, consumerCertInstalled, entCertsInstalled, prodCertsInstalled, defaultProdCertsInstalled, nil)
 	if err != nil {
 		return nil, fmt.Errorf("unable to copy testing file to testing directories: %s", err)
+	}
+
+	return testingFileSystem, nil
+}
+
+// setupTestingFileSystemReadOnly tries to set up directories and files for testing and mock system
+// that has all files and directories read-only
+func setupTestingFileSystemReadOnly(
+	tempDirFilePath string,
+	syspurposeFilesInstalled bool,
+	consumerCertInstalled bool,
+	entCertsInstalled bool,
+	prodCertsInstalled bool,
+	defaultProdCertsInstalled bool,
+) (*TestingFileSystem, error) {
+	testingFileSystem, err := setupTestingReadWriteDirectories(tempDirFilePath)
+	if err != nil {
+		return nil, fmt.Errorf("unable to create testing directories: %s", err)
+	}
+
+	err = setupTestingFiles(testingFileSystem, syspurposeFilesInstalled, consumerCertInstalled, entCertsInstalled, prodCertsInstalled, defaultProdCertsInstalled, nil)
+	if err != nil {
+		return nil, fmt.Errorf("unable to copy testing file to testing directories: %s", err)
+	}
+
+	err = filepath.WalkDir(tempDirFilePath, ChmodReadOnlyDirsAndFiles)
+	if err != nil {
+		return nil, fmt.Errorf("unable to make file system read-only %s", err)
 	}
 
 	return testingFileSystem, nil

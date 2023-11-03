@@ -30,7 +30,7 @@ func parseServerResponse(unregisterServerError *UnregisterServerError, res *http
 	unregisterServerError.StatusCode = res.StatusCode
 	resBody, err := getResponseBody(res)
 	if err != nil {
-		unregisterServerError.ParsingError = fmt.Errorf("unable to get body from 403 response")
+		unregisterServerError.ParsingError = fmt.Errorf("unable to get body from %d response", res.StatusCode)
 	}
 	err = json.Unmarshal([]byte(*resBody), &unregisterServerError)
 	if err != nil {
@@ -94,9 +94,10 @@ func (rhsmClient *RHSMClient) removeInstalledFiles() error {
 		}
 	}
 
-	if removedAll {
+	if !removedAll {
 		return fmt.Errorf("unable to remove all installed files")
 	}
+
 	return nil
 }
 
@@ -134,8 +135,15 @@ func (rhsmClient *RHSMClient) Unregister() error {
 	var unregisterServerError UnregisterServerError
 	switch res.StatusCode {
 	case 204: // Consumer was successfully deleted from the server
-		_ = rhsmClient.removeInstalledFiles()
-		log.Info().Msgf("system successfully unregistered")
+		log.Info().Msgf("system successfully unregistered on server")
+		// Try to remove all installed files.
+		err = rhsmClient.removeInstalledFiles()
+		// If it is not possible to remove any installed file, then only
+		// log it as error, but do not return error from this function, because
+		// system is technically unregistered at this moment
+		if err != nil {
+			log.Error().Msgf("%s", err)
+		}
 		return nil
 	case 403: // Not enough permission to delete consumer on server
 		// Do not remove installed files, because removing consumer was refused by server
@@ -153,6 +161,8 @@ func (rhsmClient *RHSMClient) Unregister() error {
 		log.Error().Msgf("unable to unregister: %s",
 			unregisterServerError.DisplayMessage)
 		return unregisterServerError
+	default:
+		log.Warn().Msgf("unknown status code %d returned during unregistering", res.StatusCode)
 	}
 
 	return nil
