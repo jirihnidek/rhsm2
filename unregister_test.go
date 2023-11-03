@@ -158,6 +158,7 @@ func TestUnregisterRegisteredSystem(t *testing.T) {
 
 	// Calling tested function!
 	err = rhsmClient.Unregister()
+
 	if err != nil {
 		t.Fatalf("unregistering failed with error: %s", err)
 	}
@@ -168,6 +169,108 @@ func TestUnregisterRegisteredSystem(t *testing.T) {
 
 	// Test that installed files were removed
 	helperTestInstalledFilesRemoved(t, testingFiles)
+}
+
+// TestClenRegisteredSystem tries to test cleaning of filesystem without calling
+// any REST API call
+func TestClenRegisteredSystem(t *testing.T) {
+	server := httptest.NewTLSServer( // It is expected that Unregister() method will call only
+		// one REST API point
+		http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
+			t.Fatalf("no REST API should be called during Clean()")
+		}))
+	defer server.Close()
+
+	// Create root directory for this test
+	tempDirFilePath := t.TempDir()
+
+	testingFiles, err := setupTestingFileSystem(
+		tempDirFilePath, false, true, true, true, true)
+	if err != nil {
+		t.Fatalf("unable to setup testing environment: %s", err)
+	}
+
+	rhsmClient, err := setupTestingRHSMClient(testingFiles, server)
+	if err != nil {
+		t.Fatalf("unable to setup testing rhsm client: %s", err)
+	}
+
+	// Calling tested function!
+	err = rhsmClient.Clean()
+
+	if err != nil {
+		t.Fatalf("cleaning failed with error: %s", err)
+	}
+
+	// Test that installed files were removed
+	helperTestInstalledFilesRemoved(t, testingFiles)
+}
+
+// TestUnregisterRegisteredSystemReadOnlyFileSystem tries to test unregistering of registered system
+// using function RHSMClient.Unregister(). This case cover the case, when all files are only read-only
+func TestUnregisterRegisteredSystemReadOnlyFileSystem(t *testing.T) {
+	var expectedClientUUID = "5e9745d5-624d-4af1-916e-2c17df4eb4e8"
+	handlerCounter := 0
+
+	server := httptest.NewTLSServer(
+		// It is expected that Unregister() method will call only
+		// one REST API point
+		http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
+			// Increase number of calls
+			handlerCounter += 1
+
+			// Test request method
+			if req.Method != http.MethodDelete {
+				t.Fatalf("extepected request method: %s, got: %s", http.MethodDelete, req.Method)
+			}
+
+			// Test that requested URL is correct
+			expectedURL := "/consumers/" + expectedClientUUID
+			reqURL := req.URL.String()
+			if reqURL != expectedURL {
+				t.Fatalf("expected request URL: %s, got: %s", expectedURL, reqURL)
+			}
+
+			// Return code 204
+			rw.WriteHeader(204)
+			// Add some headers specific for candlepin server
+			rw.Header().Add("x-candlepin-request-uuid", "168e3687-8498-46b2-af0a-272583d4d4ba")
+			// Return empty body
+			_, _ = rw.Write([]byte(""))
+		}))
+	defer server.Close()
+
+	// Create root directory for this test
+	tempDirFilePath := t.TempDir()
+
+	// Add cleanup function for resetting permissions of files and directories
+	t.Cleanup(func() {
+		err := fixPermissionsOfDirsAndFiles(tempDirFilePath)
+		if err != nil {
+			t.Fatalf("unable to make file system read-write again: %s", err)
+		}
+	})
+
+	testingFiles, err := setupTestingFileSystemReadOnly(
+		tempDirFilePath, false, true, true, true, true)
+	if err != nil {
+		t.Fatalf("unable to setup testing environment: %s", err)
+	}
+
+	rhsmClient, err := setupTestingRHSMClient(testingFiles, server)
+	if err != nil {
+		t.Fatalf("unable to setup testing rhsm client: %s", err)
+	}
+
+	// Calling tested function!
+	err = rhsmClient.Unregister()
+	if err != nil {
+		t.Fatalf("unregistering failed with error: %s", err)
+	}
+
+	if handlerCounter != 1 {
+		t.Fatalf("handler for unregister REST API pointed not called once, but called: %d", handlerCounter)
+	}
 }
 
 // TestUnregisterUnRegisteredSystem tries to test unregistering of un-registered system
