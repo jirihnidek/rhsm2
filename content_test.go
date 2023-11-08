@@ -9,6 +9,7 @@ import (
 // TestGetContentFromEntCert tests the case, when content is successfully loaded
 // from entitlement certificate
 func TestGetContentFromEntCert(t *testing.T) {
+	t.Parallel()
 	filePath := "testdata/etc/pki/entitlement/6490061114713729830.pem"
 	engineeringProducts, err := getContentFromEntCertFile(&filePath)
 	if err != nil {
@@ -70,6 +71,7 @@ func TestGetContentFromEntCert(t *testing.T) {
 // TestWriteRepoFile test the case, when content definition from
 // entitlement certificate is successfully written to repo file
 func TestWriteRepoFile(t *testing.T) {
+	t.Parallel()
 	server := httptest.NewTLSServer(
 		// There should be no REST API call in this case
 		http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
@@ -103,6 +105,7 @@ func TestWriteRepoFile(t *testing.T) {
 // entitlement certificate is not possible to read, because there is no
 // entitlement certificate installed
 func TestWriteRepoFileNoEntCert(t *testing.T) {
+	t.Parallel()
 	server := httptest.NewTLSServer(
 		// There should be no REST API call in this case
 		http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {

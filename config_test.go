@@ -6,6 +6,7 @@ import (
 )
 
 func TestLoadRHSMConf(t *testing.T) {
+	t.Parallel()
 	rhsmConf, err := LoadRHSMConf("./testdata/etc/rhsm/rhsm.conf")
 	if err != nil {
 		t.Fatalf("unable to load configuration file: %s", err)
@@ -18,6 +19,7 @@ func TestLoadRHSMConf(t *testing.T) {
 
 // TestIsDefaultValue test that function IsDefaultValue is able to check default value
 func TestIsDefaultValue(t *testing.T) {
+	t.Parallel()
 	rhsmConf := RHSMConf{
 		Server: RHSMConfServer{
 			Hostname: "subscription.rhsm.redhat.com",
@@ -62,6 +64,7 @@ func TestIsDefaultValue(t *testing.T) {
 }
 
 func TestIsValueAllowed(t *testing.T) {
+	t.Parallel()
 	rhsmConf, err := LoadRHSMConf("./testdata/etc/rhsm/rhsm.conf")
 	if err != nil {
 		t.Fatalf("unable to load configuration file: %s", err)

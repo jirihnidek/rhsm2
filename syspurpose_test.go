@@ -9,6 +9,7 @@ import (
 // TestGetSystemPurpose tests the case, when system purpose is
 // successfully read from configuration file
 func TestGetSystemPurpose(t *testing.T) {
+	t.Parallel()
 	var syspurposeFilePath = "./testdata/etc/rhsm/syspurpose/syspurpose.json"
 	syspurpose, err := getSystemPurpose(&syspurposeFilePath)
 	if err != nil {
@@ -34,6 +35,7 @@ func TestGetSystemPurpose(t *testing.T) {
 // TestMissingSystemPurposeFile test the case, when wrong path is provided
 // or syspurpose.json file is missing
 func TestMissingSystemPurposeFile(t *testing.T) {
+	t.Parallel()
 	var wrongFilePath = "./testdata/wrong/file/path/syspurpose.json"
 	syspurpose, err := getSystemPurpose(&wrongFilePath)
 	if err == nil {
@@ -47,6 +49,7 @@ func TestMissingSystemPurposeFile(t *testing.T) {
 // TestCorruptedSystemPurposeFile test the case, when content of syspurpose.json
 // is corrupted, and it is not possible to unmarshal content of JSON document
 func TestCorruptedSystemPurposeFile(t *testing.T) {
+	t.Parallel()
 	// Create temporary file with corrupted content
 	tempDirFilePath := t.TempDir()
 	corruptedSyspurposeFilePath := filepath.Join(tempDirFilePath, "syspurpose.json")

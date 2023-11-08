@@ -9,6 +9,7 @@ import (
 // TestCreateHTTPsClientProxyFromConf test the case, when proxy server
 // is used. The /status endpoint is used for testing
 func TestCreateHTTPsClientProxyFromConf(t *testing.T) {
+	t.Parallel()
 	handlerCounter := 0
 
 	server := httptest.NewTLSServer(

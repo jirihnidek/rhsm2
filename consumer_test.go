@@ -6,7 +6,10 @@ import (
 	"testing"
 )
 
+// TestGetConsumerUUID test getting consumer UUID from
+// installed consumer certificate
 func TestGetConsumerUUID(t *testing.T) {
+	t.Parallel()
 	server := httptest.NewTLSServer(
 		// It is expected that GetConsumerUUID() will not trigger any
 		// REST API call
@@ -40,7 +43,10 @@ func TestGetConsumerUUID(t *testing.T) {
 	}
 }
 
+// TestGetOwner test getting owner (organization ID) from installed
+// consumer certificate
 func TestGetOwner(t *testing.T) {
+	t.Parallel()
 	server := httptest.NewTLSServer(
 		// It is expected that GetOwner() will not trigger any
 		// REST API call
