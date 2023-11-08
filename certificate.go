@@ -45,5 +45,7 @@ func writePemFile(filePath *string, pemFileContent *string, mode *os.FileMode) e
 		}
 	}
 
+	log.Debug().Msgf("installed %s", *filePath)
+
 	return nil
 }

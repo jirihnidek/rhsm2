@@ -3,6 +3,8 @@ package rhsm2
 import (
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"testing"
 )
 
@@ -99,6 +101,35 @@ const entitlementCertCreatedResponse = `[ {
   }
 } ]`
 
+// helperTestInstalledFiles check if all files were installed as expected
+func helperTestInstalledFiles(t *testing.T, tempDirFilePath string) {
+	// Check that consumer cert and key were installed
+	expectedConsumerCertFilePath := filepath.Join(tempDirFilePath, "etc/pki/consumer/cert.pem")
+	if _, err := os.Stat(expectedConsumerCertFilePath); err != nil {
+		t.Fatalf("consumer cert file %s not installed", expectedConsumerCertFilePath)
+	}
+	expectedConsumerKeyFilePath := filepath.Join(tempDirFilePath, "etc/pki/consumer/key.pem")
+	if _, err := os.Stat(expectedConsumerKeyFilePath); err != nil {
+		t.Fatalf("consumer key file %s not installed", expectedConsumerKeyFilePath)
+	}
+
+	// Test that SCA entitlement certificate and key were installed
+	expectedEntitlementCertFilePath := filepath.Join(tempDirFilePath, "etc/pki/entitlement/1454563328016773404.pem")
+	if _, err := os.Stat(expectedEntitlementCertFilePath); err != nil {
+		t.Fatalf("entitlement cert file %s not installed", expectedEntitlementCertFilePath)
+	}
+	expectedEntitlementKeyFilePath := filepath.Join(tempDirFilePath, "etc/pki/entitlement/1454563328016773404-key.pem")
+	if _, err := os.Stat(expectedEntitlementKeyFilePath); err != nil {
+		t.Fatalf("entitlement cert file %s not installed", expectedEntitlementKeyFilePath)
+	}
+
+	// Test that redhat.repo was generated
+	expectedRepoFilePath := filepath.Join(tempDirFilePath, "etc/yum.repos.d/redhat.repo")
+	if _, err := os.Stat(expectedRepoFilePath); err != nil {
+		t.Fatalf("repo file %s not generated", expectedRepoFilePath)
+	}
+}
+
 // TestRegisterUsernamePasswordOrg test the case, when system is successfully
 // registered using username and password
 func TestRegisterUsernamePasswordOrg(t *testing.T) {
@@ -180,8 +211,675 @@ func TestRegisterUsernamePasswordOrg(t *testing.T) {
 		t.Fatalf("REST API point GET /consumers/%s/certificates not called once", expectedConsumerUUID)
 	}
 
-	// TODO: test that required files are installed:
-	//       * consumer cert and key
-	//       * entitlement cert and key
-	//       * redhat.repo is generated
+	helperTestInstalledFiles(t, tempDirFilePath)
+}
+
+const invalidCredentials = `{
+    "displayMessage": "Invalid Credentials",
+    "requestUuid": "fd45b8ed-1b38-4166-9d9d-b87b061ff6fe"
+}`
+
+// TestFailedRegisterUsernamePasswordOrg test the case, when system fails during
+// registration using username and password due to wrong password
+func TestFailedRegisterUsernamePasswordOrg(t *testing.T) {
+	handlerCounterConsumersPost := 0
+
+	username := "admin"
+	password := "wrong password"
+	org := "donaldduck"
+
+	server := httptest.NewTLSServer(
+		// It is expected that Register() method will call only
+		// two REST API points
+		http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
+			// Handler has to be a little bit more sophisticated in this
+			// case, because we have to handle two types of REST API calls
+
+			reqURL := req.URL.String()
+
+			if req.Method == http.MethodPost && reqURL == "/consumers?owner="+org {
+				// Increase number of calls of this REST API endpoint
+				handlerCounterConsumersPost += 1
+
+				// Return code 401
+				rw.WriteHeader(401)
+				// Add some headers specific for candlepin server
+				rw.Header().Add("x-candlepin-request-uuid", "168e3687-8498-46b2-af0a-272583d4d4ba")
+				// Return JSON document with consumer
+				_, _ = rw.Write([]byte(invalidCredentials))
+			} else {
+				t.Fatalf("unexpected REST API call: %s %s", req.Method, reqURL)
+			}
+
+		}))
+	defer server.Close()
+
+	// Create root directory for this test
+	tempDirFilePath := t.TempDir()
+
+	testingFiles, err := setupTestingFileSystem(
+		tempDirFilePath, true, false, false, false, true)
+	if err != nil {
+		t.Fatalf("unable to setup testing environment: %s", err)
+	}
+
+	rhsmClient, err := setupTestingRHSMClient(testingFiles, server)
+	if err != nil {
+		t.Fatalf("unable to setup testing rhsm client: %s", err)
+	}
+
+	// TODO: try to use secure connection
+	rhsmClient.RHSMConf.Server.Insecure = true
+
+	consumer, err := rhsmClient.RegisterUsernamePasswordOrg(&username, &password, &org)
+	if err == nil {
+		t.Fatalf("registration not failed, when wrong password provided")
+	}
+
+	if consumer != nil {
+		t.Fatalf("expected consumer created despite wrong password provided")
+	}
+
+	if handlerCounterConsumersPost != 1 {
+		t.Fatalf("REST API point POST /consumers?owner=%s not called once", org)
+	}
+}
+
+// TestRegisterUsernamePasswordOrg test the case, when system is successfully
+// registered using username and password, when there are no syspurpose file
+func TestRegisterUsernamePasswordOrgNoSyspurpose(t *testing.T) {
+	expectedConsumerUUID := "0b497970-760f-4623-943a-673c125f5b8e"
+	handlerCounterConsumersPost := 0
+	handlerCounterGetCertificates := 0
+
+	username := "admin"
+	password := "admin"
+	org := "donaldduck"
+
+	server := httptest.NewTLSServer(
+		// It is expected that Register() method will call only
+		// two REST API points
+		http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
+			// Handler has to be a little bit more sophisticated in this
+			// case, because we have to handle two types of REST API calls
+
+			reqURL := req.URL.String()
+
+			if req.Method == http.MethodPost && reqURL == "/consumers?owner="+org {
+				// Increase number of calls of this REST API endpoint
+				handlerCounterConsumersPost += 1
+
+				// Return code 200
+				rw.WriteHeader(200)
+				// Add some headers specific for candlepin server
+				rw.Header().Add("x-candlepin-request-uuid", "168e3687-8498-46b2-af0a-272583d4d4ba")
+				// Return JSON document with consumer
+				_, _ = rw.Write([]byte(consumerCreatedResponse))
+			} else if req.Method == http.MethodGet && reqURL == "/consumers/"+expectedConsumerUUID+"/certificates" {
+				// Increase number of calls of this REST API endpoint
+				handlerCounterGetCertificates += 1
+
+				// Return code 200
+				rw.WriteHeader(200)
+				// Add some headers specific for candlepin server
+				rw.Header().Add("x-candlepin-request-uuid", "168e3687-8498-46b2-af0a-272583d4d4ba")
+				// Return JSON document with consumer
+				_, _ = rw.Write([]byte(entitlementCertCreatedResponse))
+			} else {
+				t.Fatalf("unexpected REST API call: %s %s", req.Method, reqURL)
+			}
+
+		}))
+	defer server.Close()
+
+	// Create root directory for this test
+	tempDirFilePath := t.TempDir()
+
+	testingFiles, err := setupTestingFileSystem(
+		tempDirFilePath, false, false, false, false, true)
+	if err != nil {
+		t.Fatalf("unable to setup testing environment: %s", err)
+	}
+
+	rhsmClient, err := setupTestingRHSMClient(testingFiles, server)
+	if err != nil {
+		t.Fatalf("unable to setup testing rhsm client: %s", err)
+	}
+
+	// TODO: try to use secure connection
+	rhsmClient.RHSMConf.Server.Insecure = true
+
+	consumer, err := rhsmClient.RegisterUsernamePasswordOrg(&username, &password, &org)
+	if err != nil {
+		t.Fatalf("registration failed: %s", err)
+	}
+
+	if consumer.Uuid != expectedConsumerUUID {
+		t.Fatalf("expected consumer UUID: %s, got: %s", expectedConsumerUUID, consumer.Uuid)
+	}
+
+	if handlerCounterConsumersPost != 1 {
+		t.Fatalf("REST API point POST /consumers?owner=%s not called once", org)
+	}
+
+	if handlerCounterGetCertificates != 1 {
+		t.Fatalf("REST API point GET /consumers/%s/certificates not called once", expectedConsumerUUID)
+	}
+
+	helperTestInstalledFiles(t, tempDirFilePath)
+}
+
+const consumerCreatedResponseActivationKey = `{
+    "created": "2023-11-03T15:49:34+0000",
+    "updated": "2023-11-03T15:49:35+0000",
+    "id": "4028fcc68b850d06018b95e01e4e0b5e",
+    "uuid": "3d9f61ba-2776-43fe-8256-7a30918cdb96",
+    "name": "thinkpad-p1",
+    "username": null,
+    "entitlementStatus": "disabled",
+    "serviceLevel": "",
+    "role": "",
+    "usage": "",
+    "addOns": [],
+    "systemPurposeStatus": "disabled",
+    "releaseVer": {
+        "releaseVer": null
+    },
+    "owner": {
+        "id": "4028fcc68b850d06018b850d1d860004",
+        "key": "donaldduck",
+        "displayName": "Donald Duck",
+        "href": "/owners/donaldduck",
+        "contentAccessMode": "org_environment"
+    },
+    "environment": null,
+    "entitlementCount": 0,
+    "facts": {
+        "system.certificate_version": "3.2"
+    },
+    "lastCheckin": null,
+    "installedProducts": [
+        {
+            "created": "2023-11-03T15:49:34+0000",
+            "updated": "2023-11-03T15:49:34+0000",
+            "id": "4028fcc68b850d06018b95e01e4e0b60",
+            "productId": "900",
+            "productName": "Multi-Attribute Limited Product (no content)",
+            "version": "1.0",
+            "arch": "x86_64",
+            "status": null,
+            "startDate": null,
+            "endDate": null
+        },
+        {
+            "created": "2023-11-03T15:49:34+0000",
+            "updated": "2023-11-03T15:49:34+0000",
+            "id": "4028fcc68b850d06018b95e01e4e0b62",
+            "productId": "38072",
+            "productName": "Fake OS Bits",
+            "version": "1.0",
+            "arch": "ALL",
+            "status": null,
+            "startDate": null,
+            "endDate": null
+        },
+        {
+            "created": "2023-11-03T15:49:34+0000",
+            "updated": "2023-11-03T15:49:34+0000",
+            "id": "4028fcc68b850d06018b95e01e4e0b61",
+            "productId": "5050",
+            "productName": "Admin OS Premium Architecture Bits",
+            "version": "6.1",
+            "arch": "ppc64",
+            "status": null,
+            "startDate": null,
+            "endDate": null
+        }
+    ],
+    "canActivate": false,
+    "capabilities": [],
+    "hypervisorId": null,
+    "contentTags": [],
+    "autoheal": true,
+    "annotations": null,
+    "contentAccessMode": null,
+    "type": {
+        "created": null,
+        "updated": null,
+        "id": "1000",
+        "label": "system",
+        "manifest": false
+    },
+    "idCert": {
+        "created": "2023-11-03T15:49:35+0000",
+        "updated": "2023-11-03T15:49:35+0000",
+        "id": "4028fcc68b850d06018b95e020820b64",
+        "key": "-----BEGIN PRIVATE KEY-----\nMIIJQwIBADANBgkqhkiG9w0BAQEFAASCCS0wggkpAgEAAoICAQDnTd6QHwkrEacd\nVP/06mcYo0W2ZjQw/GIZg0a2TqVqPu5H9WcfuQHBTcwRBCAh+7xZnnHK6ZLUYr0p\nBbMvHtXZxsYXIk/IrfbtkjbJ+UZiFuGlTe3hmh7FwAFHxV3iEfnW+dqmjdNgqhYx\noobaeCNzheyIt8TxQfCRQ+/cQJeF/PJzox+MpxBWsVCTsnDq19AlDEBQihO1kiF6\nLDXHUKevrdouBI3Z0lyWrUt6c88qvsKAncobda4PJ5mGj35UQFvRYit4zNhTA/6s\n4AncFaInlmDP1OtJg7RKBAqLT0fIgMZyxnoAc0pOmVcmVhboTKytFEAmc6r+R82M\nIams1spHCo4p2TqkOJqiOSjv3Qr3vln7L+Y5ubM5cckV+MF0eUNqAn7w/Mh14RZf\ncFHj/3MjZ9O49j29DZtjodr9c1jT+eQyr8WLihWZY+T/8xV64ZTQkwnAzP8sUqx2\nzA4LJR9GGw9VrChkEAti9xSFam72Dmp1PUFw1Ah3mfNH+nvYFH3EHVyx/rFcq3Ys\ngnqDr4nfdcoR06W4Qrfcl94CVzk+ndC3OjvQR7qDLVLZVNs4ThcMf5MWDu+UDW2s\nSPrDgVaJkYe3DM5DRjDMi//sMYslQuRkhp9zPodeJrX3BTmPw/S5oMP1jT+crs55\n1SPMNqx0pVq6usJTYm2s82pJYnFrjQIDAQABAoICADJcTPH6H+flrwn+4L+1bX76\nxYniFMj5mm5Nm87DrtZEH2NBdhN9F3m784tc55YeljK5AbOZSWO+n8rXt9yxjQQe\neDC/QrnBzrqJFC7DfGSM8NIp9nohMUQC+wRiX3+CRHBe9BFBXd11CuIBrfTRJX7Y\nkNhvkoyou7UVIptE4PjGSw+MW6knErKdZprRxi4LkQEP+szOU148E9fi2k6sK+Zf\nJtrQGQZs+8W+s2lU361B3V1dfYyfAafBCnc2tN2pKZScGDTz/MGOZBvFp7/oYebW\noft+M0BNUaqv2I/eUhXAm/SPbC6+61XToxrwsYogb5Q7jYARvRAiGAnDporANUf6\ncDTJbJBdgg4O1aGpq9HveJFGJa1DtYj8q/R6GxhNq3SdOJAnNVLaPRdVVAUapIPN\ndbyJNUxiD3LA60019XBLKaHFehQfRQjwDVBB7N3HiFRgE0cEvR16N4+4EIGSeRpg\nmMJaksAXU6kC7LMs/XE694fKn3IdzpZzi2I6fs6dMhhHeeiQQZbJpc0z4Cvr5fU4\nQvGd8h2gXigWqmcYMEev6zn9/zlLPKf0Yrw4+NsJg0Aa9qhCOzLcFKOhLqItkNG+\nxrzMbl0oHoY6xKZfA5u83LtbDIbzOGdttn4ij20nq9Zyc/I+lQHe4bMD5EMPgFVA\nrubTiFb/tK3HVNA1+8SNAoIBAQD5hybO7RtWegr1zDZDZmlwKlcjztDZuGMTISXj\nxadoTC7Jf1ANbhIr7njlxYYBR0DLCvE+7MnBmUmdrFd+ipA2Y+jE7rNbh5pCz4m0\nR1+BhoD6U7S3yppV+mZec68qaRORM5+mRSq0naFKP32pg0O1vuf/YL4BKiduQvUN\n5Y/2XOWs+8M1zS7rpwKr0tiTPQrOPnbsHdmA7PtrrVvjNbe7a0pAXAClER5YnjjH\nWFLQ0aVrx7CJCvCROAaIpUH+kaQ5Nig4I8C7URzyOsR34l16vgwwIdGKLBdZbpe5\nIRKkzan5fkPVEat9+Wb2+mC1/OI2hwQZ1aeTQISF8GkpKiuXAoIBAQDtTbaZrlSD\nI+HBkJDHa2cnJ8mH9Pk4oT7auBBpGUC31te+45SGHuDM0i+pQcdZMWKWAsiPb7Vk\n4KCIAvpBng1/1DxetHDaevm1oXfEGrz7AqILynZdbvJFOvSAL5Am8SwRM9+61qvf\ng8gx9aCUnQDnEnKYugW+D+pV0TIl7QGp0nnnxcdB/YK2qqyUjbq3y/6K8cf9+s7M\nfT2gMAtlgr+p/cOlHf1E3fm48ECJsEBINuUuQwFTGA5NBAu7KYtEY2q5v1izIaU/\n53K4vQsY8bugmXNXzXN+OOPWVyUmSK7xK4IlyPlP/dooER/BvQDdnPQjpseuxZ87\nWTHBu/qL/JZ7AoIBAQDpQEsot0AM0Dyak/BNhNge/5VBZbyZKOGEKkJO7p6UwlIi\nDR55z2CxLFRbBQ9E9qQ8qNfmaFYY4P+NomKPaVtxXGdkX3XNo66xsWsZ2HYQj/jV\nB5YxD/TBVjaHKECftmWSH92nAZTwDUGONFd1M70BkZkwgfBbClqdmX2VJfgy5ZfU\n4esSyeCIbC/1Cj1lNXR6Yq2r/iMpf11uxDjW5YoAakSYcOgxZRUm5ZBR1+BiTvcB\nD0OYd191gBereD9+hgoraNKj19f7wdD7JbAuGK4lZK3j+Fj1fk29TcIKTj4tTAsN\nq9ggvkm+knqLeHUa6W9UZVWSCMSCw5ad1aOX1VG1AoIBAQDVDtYoaw3z5E54NOzY\nL0UhMabOy5LLVnKRe3s4cXTa2ilAeSJLvQOGwhwKskVifmWOXBdoORq65LcdBtdb\n/KUQJSTCvu0oLAtxGPTn/D26fGWzgmb9gnRA1irZwFqDrDstgs6X+M+90Zr3yBoR\n9FjwHm8HUtV/DNkPjdChnobEy3WqM7ewNwWaLejfQ9Tl2mDCrUwra3kqvjOLVDeX\nP2oIHRAAesl/gHEKq6K2PKmqbKcd/wj8avfEDCLgOu+QSlZzSSpBQq8UjiBBX3HM\nRpV4Hu4hYhQUus1ND1cKZW20mKS0ehnlyPyKxr0lfCV/08CbFc3ozAQoC/ARik3s\nS69rAoIBADX3AX8KPA2KSffnjaLC284zJHBW6pstJXW6qxthIUtDuEKD7vNdDQsb\n8ono6B2WqEY+SdMcpqdUICWqTQcGmUhXTT53ddnvV4ItRyef/zgLE5Vg2bqWJgCc\nyizIuZ2aNFDrz3KSzBom0sNCOQtErNvXs9LQ2U2yuGqATOmqX7pkQxrH4r2eyb1J\nSso7gVYpf6JNOEhIeSkHvIc5d9XI+5TAH1xPPvyV8412+89By5HA2TH4KIr2Mvgl\nmOW7vnQNRs56sS2P2FLNvGtZK5W4sErEy127wX4zAAZTMYNVt5ayFobxPxwvtcAE\nEByL6OQlDGHNczBD5nZCXhA4PJMidjU=\n-----END PRIVATE KEY-----\n",
+        "cert": "-----BEGIN CERTIFICATE-----\n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\n-----END CERTIFICATE-----\n",
+        "serial": {
+            "created": "2023-11-03T15:49:34+0000",
+            "updated": "2023-11-03T15:49:34+0000",
+            "id": 4491360281744523476,
+            "serial": 4491360281744523476,
+            "expiration": "2028-11-03T15:49:34+0000",
+            "revoked": false
+        }
+    },
+    "guestIds": [],
+    "href": "/consumers/3d9f61ba-2776-43fe-8256-7a30918cdb96",
+    "activationKeys": [
+        {
+            "activationKeyName": "awesome_os_pool",
+            "activationKeyId": "4028fcc68b850d06018b850df87909c3"
+        }
+    ],
+    "serviceType": null,
+    "environments": null
+}`
+
+// TestRegisterActivationKeyOrg test the case, when system is successfully
+// registered using activation key and organization ID
+func TestRegisterActivationKeyOrg(t *testing.T) {
+	expectedConsumerUUID := "3d9f61ba-2776-43fe-8256-7a30918cdb96"
+	handlerCounterConsumersPost := 0
+	handlerCounterGetCertificates := 0
+
+	orgId := "donaldduck"
+	activationKey := "awesome_os_pool"
+
+	server := httptest.NewTLSServer(
+		// It is expected that Register() method will call only
+		// two REST API points
+		http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
+			// Handler has to be a little bit more sophisticated in this
+			// case, because we have to handle two types of REST API calls
+
+			reqURL := req.URL.String()
+
+			if req.Method == http.MethodPost && reqURL == "/consumers?owner="+orgId+"&activation_keys="+activationKey {
+				// Increase number of calls of this REST API endpoint
+				handlerCounterConsumersPost += 1
+
+				// Return code 200
+				rw.WriteHeader(200)
+				// Add some headers specific for candlepin server
+				rw.Header().Add("x-candlepin-request-uuid", "168e3687-8498-46b2-af0a-272583d4d4ba")
+				// Return JSON document with consumer
+				_, _ = rw.Write([]byte(consumerCreatedResponseActivationKey))
+			} else if req.Method == http.MethodGet && reqURL == "/consumers/"+expectedConsumerUUID+"/certificates" {
+				// Increase number of calls of this REST API endpoint
+				handlerCounterGetCertificates += 1
+
+				// Return code 200
+				rw.WriteHeader(200)
+				// Add some headers specific for candlepin server
+				rw.Header().Add("x-candlepin-request-uuid", "168e3687-8498-46b2-af0a-272583d4d4ba")
+				// Return JSON document with consumer
+				_, _ = rw.Write([]byte(entitlementCertCreatedResponse))
+			} else {
+				t.Fatalf("unexpected REST API call: %s %s", req.Method, reqURL)
+			}
+
+		}))
+	defer server.Close()
+
+	// Create root directory for this test
+	tempDirFilePath := t.TempDir()
+
+	testingFiles, err := setupTestingFileSystem(
+		tempDirFilePath, true, false, false, false, true)
+	if err != nil {
+		t.Fatalf("unable to setup testing environment: %s", err)
+	}
+
+	rhsmClient, err := setupTestingRHSMClient(testingFiles, server)
+	if err != nil {
+		t.Fatalf("unable to setup testing rhsm client: %s", err)
+	}
+
+	// TODO: try to use secure connection
+	rhsmClient.RHSMConf.Server.Insecure = true
+
+	activationKeys := []string{activationKey}
+	consumer, err := rhsmClient.RegisterOrgActivationKeys(&orgId, activationKeys)
+	if err != nil {
+		t.Fatalf("registration failed: %s", err)
+	}
+
+	if consumer.Uuid != expectedConsumerUUID {
+		t.Fatalf("expected consumer UUID: %s, got: %s", expectedConsumerUUID, consumer.Uuid)
+	}
+
+	if handlerCounterConsumersPost != 1 {
+		t.Fatalf("REST API point POST /consumers?owner=%s&activation_keys=%s not called once", orgId, activationKey)
+	}
+
+	if handlerCounterGetCertificates != 1 {
+		t.Fatalf("REST API point GET /consumers/%s/certificates not called once", expectedConsumerUUID)
+	}
+
+	helperTestInstalledFiles(t, tempDirFilePath)
+}
+
+const consumerCreatedResponseTwoActivationKeys = `{
+    "created": "2023-11-03T15:49:34+0000",
+    "updated": "2023-11-03T15:49:35+0000",
+    "id": "4028fcc68b850d06018b95e01e4e0b5e",
+    "uuid": "3d9f61ba-2776-43fe-8256-7a30918cdb96",
+    "name": "thinkpad-p1",
+    "username": null,
+    "entitlementStatus": "disabled",
+    "serviceLevel": "",
+    "role": "",
+    "usage": "",
+    "addOns": [],
+    "systemPurposeStatus": "disabled",
+    "releaseVer": {
+        "releaseVer": null
+    },
+    "owner": {
+        "id": "4028fcc68b850d06018b850d1d860004",
+        "key": "donaldduck",
+        "displayName": "Donald Duck",
+        "href": "/owners/donaldduck",
+        "contentAccessMode": "org_environment"
+    },
+    "environment": null,
+    "entitlementCount": 0,
+    "facts": {
+        "system.certificate_version": "3.2"
+    },
+    "lastCheckin": null,
+    "installedProducts": [
+        {
+            "created": "2023-11-03T15:49:34+0000",
+            "updated": "2023-11-03T15:49:34+0000",
+            "id": "4028fcc68b850d06018b95e01e4e0b60",
+            "productId": "900",
+            "productName": "Multi-Attribute Limited Product (no content)",
+            "version": "1.0",
+            "arch": "x86_64",
+            "status": null,
+            "startDate": null,
+            "endDate": null
+        },
+        {
+            "created": "2023-11-03T15:49:34+0000",
+            "updated": "2023-11-03T15:49:34+0000",
+            "id": "4028fcc68b850d06018b95e01e4e0b62",
+            "productId": "38072",
+            "productName": "Fake OS Bits",
+            "version": "1.0",
+            "arch": "ALL",
+            "status": null,
+            "startDate": null,
+            "endDate": null
+        },
+        {
+            "created": "2023-11-03T15:49:34+0000",
+            "updated": "2023-11-03T15:49:34+0000",
+            "id": "4028fcc68b850d06018b95e01e4e0b61",
+            "productId": "5050",
+            "productName": "Admin OS Premium Architecture Bits",
+            "version": "6.1",
+            "arch": "ppc64",
+            "status": null,
+            "startDate": null,
+            "endDate": null
+        }
+    ],
+    "canActivate": false,
+    "capabilities": [],
+    "hypervisorId": null,
+    "contentTags": [],
+    "autoheal": true,
+    "annotations": null,
+    "contentAccessMode": null,
+    "type": {
+        "created": null,
+        "updated": null,
+        "id": "1000",
+        "label": "system",
+        "manifest": false
+    },
+    "idCert": {
+        "created": "2023-11-03T15:49:35+0000",
+        "updated": "2023-11-03T15:49:35+0000",
+        "id": "4028fcc68b850d06018b95e020820b64",
+        "key": "-----BEGIN PRIVATE KEY-----\n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\nEByL6OQlDGHNczBD5nZCXhA4PJMidjU=\n-----END PRIVATE KEY-----\n",
+        "cert": "-----BEGIN CERTIFICATE-----\n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\n-----END CERTIFICATE-----\n",
+        "serial": {
+            "created": "2023-11-03T15:49:34+0000",
+            "updated": "2023-11-03T15:49:34+0000",
+            "id": 4491360281744523476,
+            "serial": 4491360281744523476,
+            "expiration": "2028-11-03T15:49:34+0000",
+            "revoked": false
+        }
+    },
+    "guestIds": [],
+    "href": "/consumers/3d9f61ba-2776-43fe-8256-7a30918cdb96",
+    "activationKeys": [
+        {
+            "activationKeyName": "awesome_os_pool",
+            "activationKeyId": "4028fcc68b850d06018b850df87909c3"
+        },
+        {
+            "activationKeyName": "default_key",
+            "activationKeyId": "4028fcc68baf3367018baf34623e09c2"
+        }
+    ],
+    "serviceType": null,
+    "environments": null
+}`
+
+// TestRegisterTwoActivationsKeyOrg test the case, when system is successfully
+// registered using more than one activation key and organization ID. In this case
+// two activation keys are used
+func TestRegisterTwoActivationsKeyOrg(t *testing.T) {
+	expectedConsumerUUID := "3d9f61ba-2776-43fe-8256-7a30918cdb96"
+	handlerCounterConsumersPost := 0
+	handlerCounterGetCertificates := 0
+
+	orgId := "donaldduck"
+	activationKeys := [2]string{"awesome_os_pool", "default_key"}
+
+	server := httptest.NewTLSServer(
+		// It is expected that Register() method will call only
+		// two REST API points
+		http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
+			// Handler has to be a little bit more sophisticated in this
+			// case, because we have to handle two types of REST API calls
+
+			reqURL := req.URL.String()
+
+			var keys string
+			for idx, activationKey := range activationKeys {
+				keys += activationKey
+				if idx < len(activationKeys)-1 {
+					keys += ","
+				}
+			}
+
+			if req.Method == http.MethodPost && reqURL == "/consumers?owner="+orgId+"&activation_keys="+keys {
+				// Increase number of calls of this REST API endpoint
+				handlerCounterConsumersPost += 1
+
+				// Return code 200
+				rw.WriteHeader(200)
+				// Add some headers specific for candlepin server
+				rw.Header().Add("x-candlepin-request-uuid", "168e3687-8498-46b2-af0a-272583d4d4ba")
+				// Return JSON document with consumer
+				_, _ = rw.Write([]byte(consumerCreatedResponseTwoActivationKeys))
+			} else if req.Method == http.MethodGet && reqURL == "/consumers/"+expectedConsumerUUID+"/certificates" {
+				// Increase number of calls of this REST API endpoint
+				handlerCounterGetCertificates += 1
+
+				// Return code 200
+				rw.WriteHeader(200)
+				// Add some headers specific for candlepin server
+				rw.Header().Add("x-candlepin-request-uuid", "168e3687-8498-46b2-af0a-272583d4d4ba")
+				// Return JSON document with consumer
+				_, _ = rw.Write([]byte(entitlementCertCreatedResponse))
+			} else {
+				t.Fatalf("unexpected REST API call: %s %s", req.Method, reqURL)
+			}
+
+		}))
+	defer server.Close()
+
+	// Create root directory for this test
+	tempDirFilePath := t.TempDir()
+
+	testingFiles, err := setupTestingFileSystem(
+		tempDirFilePath, true, false, false, false, true)
+	if err != nil {
+		t.Fatalf("unable to setup testing environment: %s", err)
+	}
+
+	rhsmClient, err := setupTestingRHSMClient(testingFiles, server)
+	if err != nil {
+		t.Fatalf("unable to setup testing rhsm client: %s", err)
+	}
+
+	// TODO: try to use secure connection
+	rhsmClient.RHSMConf.Server.Insecure = true
+
+	consumer, err := rhsmClient.RegisterOrgActivationKeys(&orgId, activationKeys[:])
+	if err != nil {
+		t.Fatalf("registration failed: %s", err)
+	}
+
+	if consumer.Uuid != expectedConsumerUUID {
+		t.Fatalf("expected consumer UUID: %s, got: %s", expectedConsumerUUID, consumer.Uuid)
+	}
+
+	if handlerCounterConsumersPost != 1 {
+		t.Fatalf("REST API point POST /consumers?owner=%s&activation_keys=%s not called once",
+			orgId, activationKeys)
+	}
+
+	if handlerCounterGetCertificates != 1 {
+		t.Fatalf("REST API point GET /consumers/%s/certificates not called once", expectedConsumerUUID)
+	}
+
+	helperTestInstalledFiles(t, tempDirFilePath)
+}
+
+// orgListResponse is response of candlepin server, when client asks for list of
+// organizations the given user is member of.
+const orgListResponse = `[ {
+  "created" : "2023-10-31T09:25:10+0000",
+  "updated" : "2023-10-31T09:25:16+0000",
+  "id" : "4028fcc68b850d06018b850d1cb20002",
+  "displayName" : "Admin Owner",
+  "key" : "admin",
+  "contentPrefix" : null,
+  "defaultServiceLevel" : null,
+  "logLevel" : null,
+  "contentAccessMode" : "entitlement",
+  "contentAccessModeList" : "entitlement",
+  "autobindHypervisorDisabled" : false,
+  "autobindDisabled" : false,
+  "lastRefreshed" : "2023-10-31T09:25:16+0000",
+  "parentOwner" : null,
+  "upstreamConsumer" : null
+}, {
+  "created" : "2023-10-31T09:25:11+0000",
+  "updated" : "2023-10-31T09:25:19+0000",
+  "id" : "4028fcc68b850d06018b850d1d420003",
+  "displayName" : "Snow White",
+  "key" : "snowwhite",
+  "contentPrefix" : null,
+  "defaultServiceLevel" : null,
+  "logLevel" : null,
+  "contentAccessMode" : "entitlement",
+  "contentAccessModeList" : "entitlement,org_environment",
+  "autobindHypervisorDisabled" : false,
+  "autobindDisabled" : false,
+  "lastRefreshed" : "2023-10-31T09:25:19+0000",
+  "parentOwner" : null,
+  "upstreamConsumer" : null
+}, {
+  "created" : "2023-10-31T09:25:11+0000",
+  "updated" : "2023-10-31T09:25:21+0000",
+  "id" : "4028fcc68b850d06018b850d1d860004",
+  "displayName" : "Donald Duck",
+  "key" : "donaldduck",
+  "contentPrefix" : null,
+  "defaultServiceLevel" : null,
+  "logLevel" : null,
+  "contentAccessMode" : "org_environment",
+  "contentAccessModeList" : "entitlement,org_environment",
+  "autobindHypervisorDisabled" : false,
+  "autobindDisabled" : false,
+  "lastRefreshed" : "2023-10-31T09:25:21+0000",
+  "parentOwner" : null,
+  "upstreamConsumer" : null
+} ]`
+
+// TestGetOrganizations test the case, when client tries to get
+// list of all organizations
+func TestGetOrganizations(t *testing.T) {
+	handlerCounterGetOwners := 0
+
+	username := "admin"
+	password := "admin"
+
+	server := httptest.NewTLSServer(
+		// It is expected that Register() method will call only
+		// two REST API points
+		http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
+			// Handler has to be a little bit more sophisticated in this
+			// case, because we have to handle two types of REST API calls
+
+			reqURL := req.URL.String()
+
+			if req.Method == http.MethodGet && reqURL == "/users/"+username+"/owners" {
+				// Increase number of calls of this REST API endpoint
+				handlerCounterGetOwners += 1
+
+				// Return code 200
+				rw.WriteHeader(200)
+				// Add some headers specific for candlepin server
+				rw.Header().Add("x-candlepin-request-uuid", "168e3687-8498-46b2-af0a-272583d4d4ba")
+				// Return JSON document with list of organizations
+				_, _ = rw.Write([]byte(orgListResponse))
+			} else {
+				t.Fatalf("unexpected REST API call: %s %s", req.Method, reqURL)
+			}
+
+		}))
+	defer server.Close()
+
+	// Create root directory for this test
+	tempDirFilePath := t.TempDir()
+
+	testingFiles, err := setupTestingFileSystem(
+		tempDirFilePath, true, false, false, false, true)
+	if err != nil {
+		t.Fatalf("unable to setup testing environment: %s", err)
+	}
+
+	rhsmClient, err := setupTestingRHSMClient(testingFiles, server)
+	if err != nil {
+		t.Fatalf("unable to setup testing rhsm client: %s", err)
+	}
+
+	// TODO: try to use secure connection
+	rhsmClient.RHSMConf.Server.Insecure = true
+
+	orgs, err := rhsmClient.GetOrgs(username, password)
+	if err != nil {
+		t.Fatalf("registration failed: %s", err)
+	}
+
+	if len(orgs) != 3 {
+		t.Fatalf("expected 3 organizations in the returned list, got: %d", len(orgs))
+	}
+
+	if handlerCounterGetOwners != 1 {
+		t.Fatalf("REST API point POST /users/%s/owners not called once", username)
+	}
+
 }
