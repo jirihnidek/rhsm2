@@ -5,6 +5,7 @@ import "testing"
 // TestCreateRHSMClient test the case, when client is
 // successfully created using given configuration file
 func TestCreateRHSMClient(t *testing.T) {
+	t.Parallel()
 	confFilePath := "./testdata/etc/rhsm/rhsm.conf"
 
 	rhsmClient, err := CreateRHSMClient(&confFilePath)

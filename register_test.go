@@ -133,6 +133,7 @@ func helperTestInstalledFiles(t *testing.T, tempDirFilePath string) {
 // TestRegisterUsernamePasswordOrg test the case, when system is successfully
 // registered using username and password
 func TestRegisterUsernamePasswordOrg(t *testing.T) {
+	t.Parallel()
 	expectedConsumerUUID := "0b497970-760f-4623-943a-673c125f5b8e"
 	handlerCounterConsumersPost := 0
 	handlerCounterGetCertificates := 0
@@ -222,6 +223,7 @@ const invalidCredentials = `{
 // TestFailedRegisterUsernamePasswordOrg test the case, when system fails during
 // registration using username and password due to wrong password
 func TestFailedRegisterUsernamePasswordOrg(t *testing.T) {
+	t.Parallel()
 	handlerCounterConsumersPost := 0
 
 	username := "admin"
@@ -288,6 +290,7 @@ func TestFailedRegisterUsernamePasswordOrg(t *testing.T) {
 // TestRegisterUsernamePasswordOrg test the case, when system is successfully
 // registered using username and password, when there are no syspurpose file
 func TestRegisterUsernamePasswordOrgNoSyspurpose(t *testing.T) {
+	t.Parallel()
 	expectedConsumerUUID := "0b497970-760f-4623-943a-673c125f5b8e"
 	handlerCounterConsumersPost := 0
 	handlerCounterGetCertificates := 0
@@ -480,6 +483,7 @@ const consumerCreatedResponseActivationKey = `{
 // TestRegisterActivationKeyOrg test the case, when system is successfully
 // registered using activation key and organization ID
 func TestRegisterActivationKeyOrg(t *testing.T) {
+	t.Parallel()
 	expectedConsumerUUID := "3d9f61ba-2776-43fe-8256-7a30918cdb96"
 	handlerCounterConsumersPost := 0
 	handlerCounterGetCertificates := 0
@@ -677,6 +681,7 @@ const consumerCreatedResponseTwoActivationKeys = `{
 // registered using more than one activation key and organization ID. In this case
 // two activation keys are used
 func TestRegisterTwoActivationsKeyOrg(t *testing.T) {
+	t.Parallel()
 	expectedConsumerUUID := "3d9f61ba-2776-43fe-8256-7a30918cdb96"
 	handlerCounterConsumersPost := 0
 	handlerCounterGetCertificates := 0
@@ -821,6 +826,7 @@ const orgListResponse = `[ {
 // TestGetOrganizations test the case, when client tries to get
 // list of all organizations
 func TestGetOrganizations(t *testing.T) {
+	t.Parallel()
 	handlerCounterGetOwners := 0
 
 	username := "admin"

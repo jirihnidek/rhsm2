@@ -29,6 +29,7 @@ const entCertKeyList = `
 // TestGetEntitlementCertificate test the case, when it is possible to get SCA
 // certificate and key from the server
 func TestGetEntitlementCertificate(t *testing.T) {
+	t.Parallel()
 	var expectedClientUUID = "5e9745d5-624d-4af1-916e-2c17df4eb4e8"
 	handlerCounter := 0
 
@@ -120,6 +121,7 @@ func TestGetEntitlementCertificate(t *testing.T) {
 // TestGetEntitlementCertificateWrongConsumerUUID test the case, when wrong Consumer UUID
 // is used.
 func TestGetEntitlementCertificateWrongConsumerUUID(t *testing.T) {
+	t.Parallel()
 	var expectedClientUUID = "5e9745d5-624d-4af1-916e-2c17df4eb4e8"
 	handlerCounter := 0
 
@@ -176,6 +178,7 @@ func TestGetEntitlementCertificateWrongConsumerUUID(t *testing.T) {
 // TestGetEntitlementCertificateDeletedConsumerUUID test the case, when deleted Consumer UUID
 // is used. It is related to the case, when consumer has been deleted on the server
 func TestGetEntitlementCertificateDeletedConsumerUUID(t *testing.T) {
+	t.Parallel()
 	var expectedClientUUID = "5e9745d5-624d-4af1-916e-2c17df4eb4e8"
 	handlerCounter := 0
 
@@ -232,6 +235,7 @@ func TestGetEntitlementCertificateDeletedConsumerUUID(t *testing.T) {
 // TestGetEntitlementCertificateInternalServerError test the case, when there is
 // some internal server error
 func TestGetEntitlementCertificateInternalServerError(t *testing.T) {
+	t.Parallel()
 	var expectedClientUUID = "5e9745d5-624d-4af1-916e-2c17df4eb4e8"
 	handlerCounter := 0
 

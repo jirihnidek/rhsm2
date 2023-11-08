@@ -30,6 +30,7 @@ const serverStatusResponse = `{
 // TestGetServerStatus test the case, when it is possible
 // to get server status
 func TestGetServerStatus(t *testing.T) {
+	t.Parallel()
 	handlerCounter := 0
 
 	server := httptest.NewTLSServer(
@@ -95,6 +96,7 @@ func TestGetServerStatus(t *testing.T) {
 // TestGetServerStatus test the case, when it is possible
 // to get server status
 func TestGetServerStatusInternalServerError(t *testing.T) {
+	t.Parallel()
 	handlerCounter := 0
 
 	server := httptest.NewTLSServer(

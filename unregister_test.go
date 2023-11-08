@@ -111,6 +111,7 @@ func helperTestInstalledFilesNotRemoved(t *testing.T, testingFiles *TestingFileS
 // TestUnregisterRegisteredSystem tries to test unregistering of registered system
 // using function RHSMClient.Unregister()
 func TestUnregisterRegisteredSystem(t *testing.T) {
+	t.Parallel()
 	var expectedClientUUID = "5e9745d5-624d-4af1-916e-2c17df4eb4e8"
 	handlerCounter := 0
 
@@ -174,6 +175,7 @@ func TestUnregisterRegisteredSystem(t *testing.T) {
 // TestClenRegisteredSystem tries to test cleaning of filesystem without calling
 // any REST API call
 func TestClenRegisteredSystem(t *testing.T) {
+	t.Parallel()
 	server := httptest.NewTLSServer( // It is expected that Unregister() method will call only
 		// one REST API point
 		http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
@@ -209,6 +211,7 @@ func TestClenRegisteredSystem(t *testing.T) {
 // TestUnregisterRegisteredSystemReadOnlyFileSystem tries to test unregistering of registered system
 // using function RHSMClient.Unregister(). This case cover the case, when all files are only read-only
 func TestUnregisterRegisteredSystemReadOnlyFileSystem(t *testing.T) {
+	t.Parallel()
 	var expectedClientUUID = "5e9745d5-624d-4af1-916e-2c17df4eb4e8"
 	handlerCounter := 0
 
@@ -276,6 +279,7 @@ func TestUnregisterRegisteredSystemReadOnlyFileSystem(t *testing.T) {
 // TestUnregisterUnRegisteredSystem tries to test unregistering of un-registered system
 // using function RHSMClient.Unregister()
 func TestUnregisterUnRegisteredSystem(t *testing.T) {
+	t.Parallel()
 	handlerCounter := 0
 
 	server := httptest.NewTLSServer(
@@ -331,6 +335,7 @@ func TestUnregisterUnRegisteredSystem(t *testing.T) {
 // consumer has been already deleted by some other DELETE /consumer/{consumer_uuid}
 // by some other tool
 func TestUnregisterDeletedConsumer(t *testing.T) {
+	t.Parallel()
 	var expectedClientUUID = "5e9745d5-624d-4af1-916e-2c17df4eb4e8"
 	handlerCounter := 0
 
@@ -392,6 +397,7 @@ func TestUnregisterDeletedConsumer(t *testing.T) {
 // using function RHSMClient.Unregister(). This case is focused on the case, when
 // system tries to delete consumer, but user does not have permission doing that.
 func TestUnregisterWrongConsumer(t *testing.T) {
+	t.Parallel()
 	var expectedConsumerUUID = "5e9745d5-624d-4af1-916e-2c17df4eb4e8"
 	handlerCounter := 0
 
@@ -454,6 +460,7 @@ func TestUnregisterWrongConsumer(t *testing.T) {
 // using function RHSMClient.Unregister(). This case is focused on the case, when
 // there is some internal server error.
 func TestUnregisterInternalServerError(t *testing.T) {
+	t.Parallel()
 	var expectedClientUUID = "5e9745d5-624d-4af1-916e-2c17df4eb4e8"
 	handlerCounter := 0
 

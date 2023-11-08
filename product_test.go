@@ -9,6 +9,7 @@ import (
 // TestReadAllProductCertificates tries to test the case, when product
 // certificates are successfully read from directory
 func TestReadAllProductCertificates(t *testing.T) {
+	t.Parallel()
 	server := httptest.NewTLSServer(
 		// It is expected that Unregister() method will call only
 		// one REST API point
@@ -47,6 +48,7 @@ func TestReadAllProductCertificates(t *testing.T) {
 // certificates are successfully read from directory, but there are not
 // installed product certificates (there are only default product certs)
 func TestReadAllProductCertificatesNoInstalled(t *testing.T) {
+	t.Parallel()
 	server := httptest.NewTLSServer(
 		// It is expected that reading installed product certificates will not
 		// trigger any REST API call
@@ -83,6 +85,7 @@ func TestReadAllProductCertificatesNoInstalled(t *testing.T) {
 // TestReadNoProductCertificates tries to test the case, when no product
 // certificates are installed or preinstalled on the system
 func TestReadNoProductCertificates(t *testing.T) {
+	t.Parallel()
 	server := httptest.NewTLSServer(
 		// It is expected that Unregister() method will call only
 		// one REST API point

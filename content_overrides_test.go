@@ -24,6 +24,7 @@ const contentOverridesList = `[ {
 // TestGetContentOverrides test the case, when it is
 // possible to get content overrides from server
 func TestGetContentOverrides(t *testing.T) {
+	t.Parallel()
 	var expectedClientUUID = "5e9745d5-624d-4af1-916e-2c17df4eb4e8"
 	handlerCounter := 0
 
@@ -89,6 +90,7 @@ func TestGetContentOverrides(t *testing.T) {
 // TestGetContentOverridesInsufficientPermissions test the case, when server
 // response with 403 error
 func TestGetContentOverridesInsufficientPermissions(t *testing.T) {
+	t.Parallel()
 	var expectedClientUUID = "5e9745d5-624d-4af1-916e-2c17df4eb4e8"
 	handlerCounter := 0
 
