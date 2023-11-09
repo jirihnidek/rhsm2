@@ -5,7 +5,7 @@ go 1.19
 require (
 	github.com/creasty/defaults v1.7.0
 	github.com/henvic/httpretty v0.1.3
-	github.com/rs/zerolog v1.30.0
+	github.com/rs/zerolog v1.31.0
 	gopkg.in/ini.v1 v1.67.0
 )
 
