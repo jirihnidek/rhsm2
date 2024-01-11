@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 )
 
 // SystemFacts is collection of system facts necessary during registration
@@ -164,6 +165,11 @@ func (rhsmClient *RHSMClient) registerSystem(
 	headers map[string]string,
 	query string,
 ) (*ConsumerData, error) {
+	isActivationKeyUsed := false
+	if strings.Contains(query, "&activation_keys=") {
+		isActivationKeyUsed = true
+	}
+
 	// It is necessary to set system certificate version to value 3.0 or higher
 	facts := SystemFacts{
 		SystemCertificateVersion: "3.2",
@@ -280,7 +286,12 @@ func (rhsmClient *RHSMClient) registerSystem(
 
 	// When we are in SCA mode, then we can get entitlement cert(s) and generate content
 	if consumerData.Owner.ContentAccessMode == "org_environment" {
-		err = rhsmClient.enableContent()
+		// When at least one activation is used for registration, then
+		// try to get content override during registration, because
+		// there can be some content override associated with one of
+		// activation keys
+		getContentOverrides := isActivationKeyUsed
+		err = rhsmClient.enableContent(getContentOverrides)
 		if err != nil {
 			return nil, err
 		}
@@ -354,8 +365,11 @@ func createProductMap(entCertKeys []EntitlementCertificateKeyJSON) map[int64][]E
 // enableContent tries to get SCA entitlement certificate and generate redhat.repo from these
 // certificates. Note: candlepin returns only one SCA certificate, but it returns it
 // in the list. Thus, in theory more certificates could be returned.
-func (rhsmClient *RHSMClient) enableContent() error {
+func (rhsmClient *RHSMClient) enableContent(getContentOverrides bool) error {
+	contentOverrides := make(map[string]map[string]string)
+
 	// Try to get entitlement certificate(s) from server
+	// TODO: call this in go routine
 	entCertKeys, err := rhsmClient.getSCAEntitlementCertificates()
 	if err != nil {
 		return err
@@ -364,9 +378,23 @@ func (rhsmClient *RHSMClient) enableContent() error {
 	// Get content from entitlement certificates
 	engineeringProducts := createProductMap(entCertKeys)
 
+	// Get content overrides from server
+	// TODO: call this in go routine
+	if getContentOverrides {
+		contentOverridesList, err := rhsmClient.GetContentOverrides()
+		if err != nil {
+			return err
+		}
+		if len(contentOverridesList) > 0 {
+			contentOverrides = createMapFromContentOverrides(contentOverridesList)
+		}
+	}
+
+	// TODO: wait here for results of go routines
+
 	// Write content to redhat.repo file
 	if len(engineeringProducts) > 0 {
-		err = rhsmClient.writeRepoFile(engineeringProducts)
+		err = rhsmClient.writeRepoFile(engineeringProducts, contentOverrides)
 		if err != nil {
 			return fmt.Errorf("unable to write repo file: %s: %s", DefaultRepoFilePath, err)
 		}

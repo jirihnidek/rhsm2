@@ -60,6 +60,7 @@ type EntitlementContentJSON struct {
 // writeRepoFile tries to write map of products to repo file
 func (rhsmClient *RHSMClient) writeRepoFile(
 	productsMap map[int64][]EngineeringProduct,
+	contentOverrides map[string]map[string]string,
 ) error {
 	file := ini.Empty()
 
@@ -120,6 +121,17 @@ func (rhsmClient *RHSMClient) writeRepoFile(
 					}
 					_, _ = section.NewKey("arches", arches)
 				}
+
+				// Apply content overrides
+				if override, exists := contentOverrides[content.Name]; exists {
+					for key, value := range override {
+						_, err := section.NewKey(key, value)
+						if err != nil {
+							log.Error().Msgf("unable to apply content override for repository: %s", content.Name)
+							log.Error().Msgf("unable to add value: %v for key: %s: %s", value, key, err)
+						}
+					}
+				}
 			}
 		}
 	}
@@ -132,9 +144,11 @@ func (rhsmClient *RHSMClient) writeRepoFile(
 	return nil
 }
 
-// generateRepoFileFromEntitlementCerts tries to generate redhat.repo file
-// from installed entitlement certificate(s)
-func (rhsmClient *RHSMClient) generateRepoFileFromInstalledEntitlementCerts() error {
+// generateRepoFileFromInstalledEntitlementCerts tries to generate redhat.repo file
+// from installed entitlement certificate(s) and content overrides
+func (rhsmClient *RHSMClient) generateRepoFileFromInstalledEntitlementCerts(
+	contentOverrides map[string]map[string]string,
+) error {
 	entCertDirPath := rhsmClient.RHSMConf.RHSM.EntitlementCertDir
 	entCertsFilePaths, err := os.ReadDir(entCertDirPath)
 	if err != nil {
@@ -165,7 +179,7 @@ func (rhsmClient *RHSMClient) generateRepoFileFromInstalledEntitlementCerts() er
 		}
 	}
 
-	return rhsmClient.writeRepoFile(engineeringProductsMap)
+	return rhsmClient.writeRepoFile(engineeringProductsMap, contentOverrides)
 }
 
 // getContentFromEntCertFile tries to load entitlement certificate from given file

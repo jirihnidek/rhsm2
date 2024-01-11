@@ -487,6 +487,7 @@ func TestRegisterActivationKeyOrg(t *testing.T) {
 	expectedConsumerUUID := "3d9f61ba-2776-43fe-8256-7a30918cdb96"
 	handlerCounterConsumersPost := 0
 	handlerCounterGetCertificates := 0
+	handlerCounterGetContentOverriders := 0
 
 	orgId := "donaldduck"
 	activationKey := "awesome_os_pool"
@@ -518,8 +519,17 @@ func TestRegisterActivationKeyOrg(t *testing.T) {
 				rw.WriteHeader(200)
 				// Add some headers specific for candlepin server
 				rw.Header().Add("x-candlepin-request-uuid", "168e3687-8498-46b2-af0a-272583d4d4ba")
-				// Return JSON document with consumer
+				// Return JSON document with entitlement certificate and key
 				_, _ = rw.Write([]byte(entitlementCertCreatedResponse))
+			} else if req.Method == http.MethodGet && reqURL == "/consumers/"+expectedConsumerUUID+"/content_overrides" {
+				handlerCounterGetContentOverriders += 1
+
+				// Return code 200
+				rw.WriteHeader(200)
+				// Add some headers specific for candlepin server
+				rw.Header().Add("x-candlepin-request-uuid", "168e3687-8498-46b2-af0a-272583d4d4ba")
+				// Return JSON document with empty list of content overrides
+				_, _ = rw.Write([]byte("[]"))
 			} else {
 				t.Fatalf("unexpected REST API call: %s %s", req.Method, reqURL)
 			}
@@ -560,6 +570,110 @@ func TestRegisterActivationKeyOrg(t *testing.T) {
 
 	if handlerCounterGetCertificates != 1 {
 		t.Fatalf("REST API point GET /consumers/%s/certificates not called once", expectedConsumerUUID)
+	}
+
+	if handlerCounterGetContentOverriders != 1 {
+		t.Fatalf("REST API point GET /consumers/%s/content_overrides not called once", expectedConsumerUUID)
+	}
+
+	helperTestInstalledFiles(t, tempDirFilePath)
+}
+
+// TestRegisterActivationKeyOrg test the case, when system is successfully
+// registered using activation key and organization ID. This unit test also
+// covers the case, when some content overrides is added to given activation key
+func TestRegisterActivationKeyOrgContentOverride(t *testing.T) {
+	t.Parallel()
+	expectedConsumerUUID := "3d9f61ba-2776-43fe-8256-7a30918cdb96"
+	handlerCounterConsumersPost := 0
+	handlerCounterGetCertificates := 0
+	handlerCounterGetContentOverriders := 0
+
+	orgId := "donaldduck"
+	activationKey := "awesome_os_pool"
+
+	server := httptest.NewTLSServer(
+		// It is expected that Register() method will call only
+		// two REST API points
+		http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
+			// Handler has to be a little bit more sophisticated in this
+			// case, because we have to handle two types of REST API calls
+
+			reqURL := req.URL.String()
+
+			if req.Method == http.MethodPost && reqURL == "/consumers?owner="+orgId+"&activation_keys="+activationKey {
+				// Increase number of calls of this REST API endpoint
+				handlerCounterConsumersPost += 1
+
+				// Return code 200
+				rw.WriteHeader(200)
+				// Add some headers specific for candlepin server
+				rw.Header().Add("x-candlepin-request-uuid", "168e3687-8498-46b2-af0a-272583d4d4ba")
+				// Return JSON document with consumer
+				_, _ = rw.Write([]byte(consumerCreatedResponseActivationKey))
+			} else if req.Method == http.MethodGet && reqURL == "/consumers/"+expectedConsumerUUID+"/certificates" {
+				// Increase number of calls of this REST API endpoint
+				handlerCounterGetCertificates += 1
+
+				// Return code 200
+				rw.WriteHeader(200)
+				// Add some headers specific for candlepin server
+				rw.Header().Add("x-candlepin-request-uuid", "168e3687-8498-46b2-af0a-272583d4d4ba")
+				// Return JSON document with entitlement certificate and key
+				_, _ = rw.Write([]byte(entitlementCertCreatedResponse))
+			} else if req.Method == http.MethodGet && reqURL == "/consumers/"+expectedConsumerUUID+"/content_overrides" {
+				handlerCounterGetContentOverriders += 1
+
+				// Return code 200
+				rw.WriteHeader(200)
+				// Add some headers specific for candlepin server
+				rw.Header().Add("x-candlepin-request-uuid", "168e3687-8498-46b2-af0a-272583d4d4ba")
+				// Return JSON document with empty list of content overrides
+				_, _ = rw.Write([]byte(contentOverridesList))
+			} else {
+				t.Fatalf("unexpected REST API call: %s %s", req.Method, reqURL)
+			}
+
+		}))
+	defer server.Close()
+
+	// Create root directory for this test
+	tempDirFilePath := t.TempDir()
+
+	testingFiles, err := setupTestingFileSystem(
+		tempDirFilePath, true, false, false, false, true)
+	if err != nil {
+		t.Fatalf("unable to setup testing environment: %s", err)
+	}
+
+	rhsmClient, err := setupTestingRHSMClient(testingFiles, server)
+	if err != nil {
+		t.Fatalf("unable to setup testing rhsm client: %s", err)
+	}
+
+	// TODO: try to use secure connection
+	rhsmClient.RHSMConf.Server.Insecure = true
+
+	activationKeys := []string{activationKey}
+	consumer, err := rhsmClient.RegisterOrgActivationKeys(&orgId, activationKeys)
+	if err != nil {
+		t.Fatalf("registration failed: %s", err)
+	}
+
+	if consumer.Uuid != expectedConsumerUUID {
+		t.Fatalf("expected consumer UUID: %s, got: %s", expectedConsumerUUID, consumer.Uuid)
+	}
+
+	if handlerCounterConsumersPost != 1 {
+		t.Fatalf("REST API point POST /consumers?owner=%s&activation_keys=%s not called once", orgId, activationKey)
+	}
+
+	if handlerCounterGetCertificates != 1 {
+		t.Fatalf("REST API point GET /consumers/%s/certificates not called once", expectedConsumerUUID)
+	}
+
+	if handlerCounterGetContentOverriders != 1 {
+		t.Fatalf("REST API point GET /consumers/%s/content_overrides not called once", expectedConsumerUUID)
 	}
 
 	helperTestInstalledFiles(t, tempDirFilePath)
@@ -685,6 +799,7 @@ func TestRegisterTwoActivationsKeyOrg(t *testing.T) {
 	expectedConsumerUUID := "3d9f61ba-2776-43fe-8256-7a30918cdb96"
 	handlerCounterConsumersPost := 0
 	handlerCounterGetCertificates := 0
+	handlerCounterGetContentOverriders := 0
 
 	orgId := "donaldduck"
 	activationKeys := [2]string{"awesome_os_pool", "default_key"}
@@ -726,6 +841,15 @@ func TestRegisterTwoActivationsKeyOrg(t *testing.T) {
 				rw.Header().Add("x-candlepin-request-uuid", "168e3687-8498-46b2-af0a-272583d4d4ba")
 				// Return JSON document with consumer
 				_, _ = rw.Write([]byte(entitlementCertCreatedResponse))
+			} else if req.Method == http.MethodGet && reqURL == "/consumers/"+expectedConsumerUUID+"/content_overrides" {
+				handlerCounterGetContentOverriders += 1
+
+				// Return code 200
+				rw.WriteHeader(200)
+				// Add some headers specific for candlepin server
+				rw.Header().Add("x-candlepin-request-uuid", "168e3687-8498-46b2-af0a-272583d4d4ba")
+				// Return JSON document with empty list of content overrides
+				_, _ = rw.Write([]byte("[]"))
 			} else {
 				t.Fatalf("unexpected REST API call: %s %s", req.Method, reqURL)
 			}
@@ -766,6 +890,10 @@ func TestRegisterTwoActivationsKeyOrg(t *testing.T) {
 
 	if handlerCounterGetCertificates != 1 {
 		t.Fatalf("REST API point GET /consumers/%s/certificates not called once", expectedConsumerUUID)
+	}
+
+	if handlerCounterGetContentOverriders != 1 {
+		t.Fatalf("REST API point GET /consumers/%s/content_overrides not called once", expectedConsumerUUID)
 	}
 
 	helperTestInstalledFiles(t, tempDirFilePath)
