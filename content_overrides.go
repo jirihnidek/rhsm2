@@ -62,3 +62,16 @@ func (rhsmClient *RHSMClient) GetContentOverrides() ([]ContentOverride, error) {
 
 	return contentOverrides, nil
 }
+
+// createMapFromContentOverrides creates map with content overrides from list of
+// content overrides returned from candlepin server
+func createMapFromContentOverrides(contentOverrides []ContentOverride) map[string]map[string]string {
+	mapContentOverrides := make(map[string]map[string]string)
+	for _, contentOverride := range contentOverrides {
+		if _, exist := mapContentOverrides[contentOverride.ContentLabel]; !exist {
+			mapContentOverrides[contentOverride.ContentLabel] = make(map[string]string)
+		}
+		mapContentOverrides[contentOverride.ContentLabel][contentOverride.Name] = contentOverride.Value
+	}
+	return mapContentOverrides
+}

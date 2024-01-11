@@ -3,6 +3,7 @@ package rhsm2
 import (
 	"net/http"
 	"net/http/httptest"
+	"reflect"
 	"testing"
 )
 
@@ -250,5 +251,68 @@ func TestGetContentOverridesInternalServerError(t *testing.T) {
 	_, err = rhsmClient.GetContentOverrides()
 	if err == nil {
 		t.Fatalf("no error raised, when server responses with 500 status code")
+	}
+}
+
+// Test_createMapFromContentOverrides tests creating map from list of ContentOverrides
+// returned form candlepin server
+func Test_createMapFromContentOverrides(t *testing.T) {
+	type args struct {
+		contentOverrides []ContentOverride
+	}
+	tests := []struct {
+		name string
+		args args
+		want map[string]map[string]string
+	}{
+		{
+			"empty content overrides",
+			args{contentOverrides: make([]ContentOverride, 0)},
+			make(map[string]map[string]string),
+		},
+		{
+			"one content override",
+			args{
+				contentOverrides: []ContentOverride{
+					{
+						ContentLabel: "awesome_os-801",
+						Updated:      "2023-10-23T11:54:30+0000",
+						Created:      "2023-10-23T11:54:30+0000",
+						Name:         "enabled",
+						Value:        "1",
+					},
+				},
+			},
+			map[string]map[string]string{"awesome_os-801": {"enabled": "1"}},
+		},
+		{
+			"two content overrides",
+			args{
+				contentOverrides: []ContentOverride{
+					{
+						ContentLabel: "awesome_os-801",
+						Updated:      "2023-10-23T11:54:30+0000",
+						Created:      "2023-10-23T11:54:30+0000",
+						Name:         "enabled",
+						Value:        "1",
+					},
+					{
+						ContentLabel: "awesome_os-801",
+						Updated:      "2023-10-23T11:54:30+0000",
+						Created:      "2023-10-23T11:54:30+0000",
+						Name:         "enabled_metadata",
+						Value:        "1",
+					},
+				},
+			},
+			map[string]map[string]string{"awesome_os-801": {"enabled": "1", "enabled_metadata": "1"}},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := createMapFromContentOverrides(tt.args.contentOverrides); !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("createMapFromContentOverrides() = %v, want %v", got, tt.want)
+			}
+		})
 	}
 }
