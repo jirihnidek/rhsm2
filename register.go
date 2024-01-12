@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 )
 
 // SystemFacts is collection of system facts necessary during registration
@@ -362,45 +363,89 @@ func createProductMap(entCertKeys []EntitlementCertificateKeyJSON) map[int64][]E
 	return engineeringProducts
 }
 
+// EntCertKeysResult is structure used in enableContent function
+type EntCertKeysResult struct {
+	entCertKeyJSONList []EntitlementCertificateKeyJSON
+	err                error
+}
+
+// ContentOverridesResult is structure used in enableContent function
+type ContentOverridesResult struct {
+	contentOverridesList []ContentOverride
+	err                  error
+}
+
 // enableContent tries to get SCA entitlement certificate and generate redhat.repo from these
 // certificates. Note: candlepin returns only one SCA certificate, but it returns it
 // in the list. Thus, in theory more certificates could be returned.
 func (rhsmClient *RHSMClient) enableContent(getContentOverrides bool) error {
+	var waitGroup sync.WaitGroup
+
+	// Try to get SCA entitlement certificate and key asynchronously
+	entCertKeysChan := make(chan EntCertKeysResult, 1)
+	waitGroup.Add(1)
+	go func(wg *sync.WaitGroup, result chan EntCertKeysResult) {
+		defer wg.Done()
+		entCertKeys, err := rhsmClient.getSCAEntitlementCertificates()
+		entCertKeyResult := EntCertKeysResult{entCertKeys, err}
+		result <- entCertKeyResult
+	}(&waitGroup, entCertKeysChan)
+
+	// If getting content overrides is request, then try to do it asynchronously
+	// because entitlement certificate is not necessary for that
+	contentOverridesChan := make(chan ContentOverridesResult, 1)
+	if getContentOverrides {
+		waitGroup.Add(1)
+		go func(wg *sync.WaitGroup, result chan ContentOverridesResult) {
+			defer wg.Done()
+			contentOverridesList, err := rhsmClient.GetContentOverrides()
+			contentOverridesResult := ContentOverridesResult{contentOverridesList, err}
+			result <- contentOverridesResult
+		}(&waitGroup, contentOverridesChan)
+	}
+
+	// Wait for result of both REST API calls
+	waitGroup.Wait()
+
+	// Create empty maps of products and content overrides for corner cases
+	engineeringProducts := make(map[int64][]EngineeringProduct)
 	contentOverrides := make(map[string]map[string]string)
 
-	// Try to get entitlement certificate(s) from server
-	// TODO: call this in go routine
-	entCertKeys, err := rhsmClient.getSCAEntitlementCertificates()
-	if err != nil {
-		return err
+	// Try to get entitlement certs and keys from channel
+	entCertKeysResult, ok := <-entCertKeysChan
+	if ok {
+		if entCertKeysResult.err != nil {
+			return entCertKeysResult.err
+		}
+		// Get content from entitlement certificates
+		engineeringProducts = createProductMap(entCertKeysResult.entCertKeyJSONList)
 	}
 
-	// Get content from entitlement certificates
-	engineeringProducts := createProductMap(entCertKeys)
-
-	// Get content overrides from server
-	// TODO: call this in go routine
+	// Try to get content overrides from channel
 	if getContentOverrides {
-		contentOverridesList, err := rhsmClient.GetContentOverrides()
-		if err != nil {
-			return err
-		}
-		if len(contentOverridesList) > 0 {
-			contentOverrides = createMapFromContentOverrides(contentOverridesList)
+		contentOverridesResult, ok := <-contentOverridesChan
+		if ok {
+			if contentOverridesResult.err != nil {
+				return contentOverridesResult.err
+			}
+			if len(contentOverridesResult.contentOverridesList) > 0 {
+				contentOverrides = createMapFromContentOverrides(contentOverridesResult.contentOverridesList)
+			}
 		}
 	}
-
-	// TODO: wait here for results of go routines
 
 	// Write content to redhat.repo file
 	if len(engineeringProducts) > 0 {
-		err = rhsmClient.writeRepoFile(engineeringProducts, contentOverrides)
+		err := rhsmClient.writeRepoFile(engineeringProducts, contentOverrides)
 		if err != nil {
-			return fmt.Errorf("unable to write repo file: %s: %s", DefaultRepoFilePath, err)
+			return fmt.Errorf("unable to write repo file: %s: %s",
+				rhsmClient.RHSMConf.yumRepoFilePath, err)
 		}
+		log.Info().Msgf("%s generated", rhsmClient.RHSMConf.yumRepoFilePath)
+	} else {
+		log.Debug().Msgf("skipping writing repo file %s, because the list of engineering products is empty",
+			rhsmClient.RHSMConf.yumRepoFilePath)
 	}
-
-	log.Info().Msgf("%s generated", rhsmClient.RHSMConf.yumRepoFilePath)
 
 	return nil
 }
