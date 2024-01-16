@@ -77,7 +77,7 @@ func TestGetEntitlementCertificate(t *testing.T) {
 		t.Fatalf("unable to setup testing rhsm client: %s", err)
 	}
 
-	entCertKeys, err := rhsmClient.getSCAEntitlementCertificates()
+	entCertKeys, err := rhsmClient.getSCAEntitlementCertificates("66bf0b7a-aaae-4b31-a7bf-bc22052afebf")
 	if err != nil {
 		t.Fatalf("failed to get SCA entitlement cert and key: %s", err)
 	}
@@ -169,7 +169,7 @@ func TestGetEntitlementCertificateWrongConsumerUUID(t *testing.T) {
 		t.Fatalf("unable to setup testing rhsm client: %s", err)
 	}
 
-	_, err = rhsmClient.getSCAEntitlementCertificates()
+	_, err = rhsmClient.getSCAEntitlementCertificates("66bf0b7a-aaae-4b31-a7bf-bc22052afebf")
 	if err == nil {
 		t.Fatalf("no error raised, when server responses with 404 status code")
 	}
@@ -226,7 +226,7 @@ func TestGetEntitlementCertificateDeletedConsumerUUID(t *testing.T) {
 		t.Fatalf("unable to setup testing rhsm client: %s", err)
 	}
 
-	_, err = rhsmClient.getSCAEntitlementCertificates()
+	_, err = rhsmClient.getSCAEntitlementCertificates("66bf0b7a-aaae-4b31-a7bf-bc22052afebf")
 	if err == nil {
 		t.Fatalf("no error raised, when server responses with 410 status code")
 	}
@@ -283,7 +283,7 @@ func TestGetEntitlementCertificateInternalServerError(t *testing.T) {
 		t.Fatalf("unable to setup testing rhsm client: %s", err)
 	}
 
-	_, err = rhsmClient.getSCAEntitlementCertificates()
+	_, err = rhsmClient.getSCAEntitlementCertificates("66bf0b7a-aaae-4b31-a7bf-bc22052afebf")
 	if err == nil {
 		t.Fatalf("no error raised, when server responses with 410 status code")
 	}

@@ -30,7 +30,7 @@ func TestGetContentOverrides(t *testing.T) {
 	handlerCounter := 0
 
 	server := httptest.NewTLSServer(
-		// It is expected that GetContentOverrides() will call only
+		// It is expected that getContentOverrides() will call only
 		// one REST API point
 		http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
 			// Increase number of calls
@@ -52,8 +52,6 @@ func TestGetContentOverrides(t *testing.T) {
 			rw.WriteHeader(200)
 			// Add some headers specific for candlepin server
 			rw.Header().Add("x-candlepin-request-uuid", "168e3687-8498-46b2-af0a-272583d4d4ba")
-			// Add content type header
-			rw.Header().Add("Content-type", "application/json")
 			// Return empty body
 			_, _ = rw.Write([]byte(contentOverridesList))
 		}))
@@ -74,7 +72,7 @@ func TestGetContentOverrides(t *testing.T) {
 		t.Fatalf("unable to setup testing rhsm client: %s", err)
 	}
 
-	contentOverrides, err := rhsmClient.GetContentOverrides()
+	contentOverrides, err := rhsmClient.getContentOverrides("66bf0b7a-aaae-4b31-a7bf-bc22052afebf")
 	if err != nil {
 		t.Fatalf("unable to get list of content overrides: %s", err)
 	}
@@ -96,7 +94,7 @@ func TestGetContentOverridesInsufficientPermissions(t *testing.T) {
 	handlerCounter := 0
 
 	server := httptest.NewTLSServer(
-		// It is expected that GetContentOverrides() will call only
+		// It is expected that getContentOverrides() will call only
 		// one REST API point
 		http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
 			// Increase number of calls
@@ -138,7 +136,7 @@ func TestGetContentOverridesInsufficientPermissions(t *testing.T) {
 		t.Fatalf("unable to setup testing rhsm client: %s", err)
 	}
 
-	_, err = rhsmClient.GetContentOverrides()
+	_, err = rhsmClient.getContentOverrides("66bf0b7a-aaae-4b31-a7bf-bc22052afebf")
 	if err == nil {
 		t.Fatalf("no error raised, when server responses with 403 status code")
 	}
@@ -151,7 +149,7 @@ func TestGetContentOverridesWrongConsumer(t *testing.T) {
 	handlerCounter := 0
 
 	server := httptest.NewTLSServer(
-		// It is expected that GetContentOverrides() will call only
+		// It is expected that getContentOverrides() will call only
 		// one REST API point
 		http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
 			// Increase number of calls
@@ -193,7 +191,7 @@ func TestGetContentOverridesWrongConsumer(t *testing.T) {
 		t.Fatalf("unable to setup testing rhsm client: %s", err)
 	}
 
-	_, err = rhsmClient.GetContentOverrides()
+	_, err = rhsmClient.getContentOverrides("66bf0b7a-aaae-4b31-a7bf-bc22052afebf")
 	if err == nil {
 		t.Fatalf("no error raised, when server responses with 404 status code")
 	}
@@ -206,7 +204,7 @@ func TestGetContentOverridesInternalServerError(t *testing.T) {
 	handlerCounter := 0
 
 	server := httptest.NewTLSServer(
-		// It is expected that GetContentOverrides() will call only
+		// It is expected that getContentOverrides() will call only
 		// one REST API point
 		http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
 			// Increase number of calls
@@ -248,7 +246,7 @@ func TestGetContentOverridesInternalServerError(t *testing.T) {
 		t.Fatalf("unable to setup testing rhsm client: %s", err)
 	}
 
-	_, err = rhsmClient.GetContentOverrides()
+	_, err = rhsmClient.getContentOverrides("66bf0b7a-aaae-4b31-a7bf-bc22052afebf")
 	if err == nil {
 		t.Fatalf("no error raised, when server responses with 500 status code")
 	}

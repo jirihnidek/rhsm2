@@ -110,18 +110,21 @@ func (rhsmClient *RHSMClient) Clean() error {
 
 // Unregister tries to unregister system
 func (rhsmClient *RHSMClient) Unregister() error {
-	uuid, err := rhsmClient.GetConsumerUUID()
+	consumerUuid, err := rhsmClient.GetConsumerUUID()
 
 	if err != nil {
 		return err
 	}
 
+	var headers = make(map[string]string)
+	headers["X-Correlation-ID"] = createCorrelationId()
+
 	res, err := rhsmClient.ConsumerCertAuthConnection.request(
 		http.MethodDelete,
-		"consumers/"+*uuid,
+		"consumers/"+*consumerUuid,
 		"",
 		"",
-		nil,
+		&headers,
 		nil)
 
 	// When we are not able to call REST API call, then cancel registration process.

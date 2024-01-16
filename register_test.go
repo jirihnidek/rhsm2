@@ -137,6 +137,7 @@ func TestRegisterUsernamePasswordOrg(t *testing.T) {
 	expectedConsumerUUID := "0b497970-760f-4623-943a-673c125f5b8e"
 	handlerCounterConsumersPost := 0
 	handlerCounterGetCertificates := 0
+	var xCorrelationId string
 
 	username := "admin"
 	password := "admin"
@@ -154,6 +155,8 @@ func TestRegisterUsernamePasswordOrg(t *testing.T) {
 			if req.Method == http.MethodPost && reqURL == "/consumers?owner="+org {
 				// Increase number of calls of this REST API endpoint
 				handlerCounterConsumersPost += 1
+				// Save correlation ID header for later checks
+				xCorrelationId = req.Header.Get("X-Correlation-ID")
 
 				// Return code 200
 				rw.WriteHeader(200)
@@ -164,6 +167,13 @@ func TestRegisterUsernamePasswordOrg(t *testing.T) {
 			} else if req.Method == http.MethodGet && reqURL == "/consumers/"+expectedConsumerUUID+"/certificates" {
 				// Increase number of calls of this REST API endpoint
 				handlerCounterGetCertificates += 1
+
+				// Check X-Correlation-ID
+				currentXCorrId := req.Header.Get("X-Correlation-ID")
+				if xCorrelationId != currentXCorrId {
+					t.Fatalf("X-Correlation-ID %s does not match ID: %s from first HTTP request",
+						currentXCorrId, xCorrelationId)
+				}
 
 				// Return code 200
 				rw.WriteHeader(200)
@@ -488,6 +498,7 @@ func TestRegisterActivationKeyOrg(t *testing.T) {
 	handlerCounterConsumersPost := 0
 	handlerCounterGetCertificates := 0
 	handlerCounterGetContentOverriders := 0
+	var xCorrelationId string
 
 	orgId := "donaldduck"
 	activationKey := "awesome_os_pool"
@@ -505,6 +516,9 @@ func TestRegisterActivationKeyOrg(t *testing.T) {
 				// Increase number of calls of this REST API endpoint
 				handlerCounterConsumersPost += 1
 
+				// Save X-Correlation-Id for later checks
+				xCorrelationId = req.Header.Get("X-Correlation-ID")
+
 				// Return code 200
 				rw.WriteHeader(200)
 				// Add some headers specific for candlepin server
@@ -515,6 +529,13 @@ func TestRegisterActivationKeyOrg(t *testing.T) {
 				// Increase number of calls of this REST API endpoint
 				handlerCounterGetCertificates += 1
 
+				// Check X-Correlation-ID to match ID from POST request
+				currentXCorrId := req.Header.Get("X-Correlation-ID")
+				if xCorrelationId != currentXCorrId {
+					t.Fatalf("X-Correlation-ID %s does not match ID: %s from first HTTP request",
+						currentXCorrId, xCorrelationId)
+				}
+
 				// Return code 200
 				rw.WriteHeader(200)
 				// Add some headers specific for candlepin server
@@ -523,6 +544,13 @@ func TestRegisterActivationKeyOrg(t *testing.T) {
 				_, _ = rw.Write([]byte(entitlementCertCreatedResponse))
 			} else if req.Method == http.MethodGet && reqURL == "/consumers/"+expectedConsumerUUID+"/content_overrides" {
 				handlerCounterGetContentOverriders += 1
+
+				// Check X-Correlation-ID to match ID from POST request
+				currentXCorrId := req.Header.Get("X-Correlation-ID")
+				if xCorrelationId != currentXCorrId {
+					t.Fatalf("X-Correlation-ID %s does not match ID: %s from first HTTP request",
+						currentXCorrId, xCorrelationId)
+				}
 
 				// Return code 200
 				rw.WriteHeader(200)

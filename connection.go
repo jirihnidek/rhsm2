@@ -5,6 +5,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
+	"github.com/google/uuid"
 	"github.com/henvic/httpretty"
 	"github.com/rs/zerolog/log"
 	"io"
@@ -40,6 +41,11 @@ type RHSMConnection struct {
 	ServerHostname *string
 	ServerPort     *string
 	ServerPrefix   *string
+}
+
+// createCorrelationId
+func createCorrelationId() string {
+	return uuid.New().String()
 }
 
 // request tries to call HTTP request to candlepin server

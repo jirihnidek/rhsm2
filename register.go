@@ -137,6 +137,8 @@ func (rhsmClient *RHSMClient) GetOrgs(
 	headers["username"] = username
 	headers["password"] = password
 
+	headers["X-Correlation-ID"] = createCorrelationId()
+
 	res, err := rhsmClient.NoAuthConnection.request(
 		http.MethodGet,
 		"users/"+username+"/owners",
@@ -292,7 +294,7 @@ func (rhsmClient *RHSMClient) registerSystem(
 		// there can be some content override associated with one of
 		// activation keys
 		getContentOverrides := isActivationKeyUsed
-		err = rhsmClient.enableContent(getContentOverrides)
+		err = rhsmClient.enableContent(getContentOverrides, headers["X-Correlation-ID"])
 		if err != nil {
 			return nil, err
 		}
@@ -311,7 +313,7 @@ func (rhsmClient *RHSMClient) RegisterOrgActivationKeys(
 ) (*ConsumerData, error) {
 	var headers = make(map[string]string)
 
-	headers["Content-type"] = "application/json"
+	headers["X-Correlation-ID"] = createCorrelationId()
 
 	var strActivationKeys string
 	for idx, activationKey := range activationKeys {
@@ -336,6 +338,8 @@ func (rhsmClient *RHSMClient) RegisterUsernamePasswordOrg(
 
 	headers["username"] = *username
 	headers["password"] = *password
+
+	headers["X-Correlation-ID"] = createCorrelationId()
 
 	var query string
 	if *org != "" {
@@ -378,15 +382,16 @@ type ContentOverridesResult struct {
 // enableContent tries to get SCA entitlement certificate and generate redhat.repo from these
 // certificates. Note: candlepin returns only one SCA certificate, but it returns it
 // in the list. Thus, in theory more certificates could be returned.
-func (rhsmClient *RHSMClient) enableContent(getContentOverrides bool) error {
+func (rhsmClient *RHSMClient) enableContent(getContentOverrides bool, xCorrelationId string) error {
 	var waitGroup sync.WaitGroup
 
 	// Try to get SCA entitlement certificate and key asynchronously
 	entCertKeysChan := make(chan EntCertKeysResult, 1)
+	// Add following go routine to wait group
 	waitGroup.Add(1)
 	go func(wg *sync.WaitGroup, result chan EntCertKeysResult) {
 		defer wg.Done()
-		entCertKeys, err := rhsmClient.getSCAEntitlementCertificates()
+		entCertKeys, err := rhsmClient.getSCAEntitlementCertificates(xCorrelationId)
 		entCertKeyResult := EntCertKeysResult{entCertKeys, err}
 		result <- entCertKeyResult
 	}(&waitGroup, entCertKeysChan)
@@ -395,10 +400,11 @@ func (rhsmClient *RHSMClient) enableContent(getContentOverrides bool) error {
 	// because entitlement certificate is not necessary for that
 	contentOverridesChan := make(chan ContentOverridesResult, 1)
 	if getContentOverrides {
+		// Add following go routine to wait group
 		waitGroup.Add(1)
 		go func(wg *sync.WaitGroup, result chan ContentOverridesResult) {
 			defer wg.Done()
-			contentOverridesList, err := rhsmClient.GetContentOverrides()
+			contentOverridesList, err := rhsmClient.getContentOverrides(xCorrelationId)
 			contentOverridesResult := ContentOverridesResult{contentOverridesList, err}
 			result <- contentOverridesResult
 		}(&waitGroup, contentOverridesChan)

@@ -41,6 +41,9 @@ func (rhsmClient *RHSMClient) GetServerStatus() (*RHSMStatus, error) {
 	var rhsmStatus RHSMStatus
 	var connection *RHSMConnection
 
+	var headers = make(map[string]string)
+	headers["X-Correlation-ID"] = createCorrelationId()
+
 	_, err := rhsmClient.GetConsumerUUID()
 	if err == nil {
 		connection = rhsmClient.ConsumerCertAuthConnection
@@ -56,7 +59,7 @@ func (rhsmClient *RHSMClient) GetServerStatus() (*RHSMStatus, error) {
 		"status",
 		"",
 		"",
-		nil,
+		&headers,
 		nil,
 	)
 	if err != nil {

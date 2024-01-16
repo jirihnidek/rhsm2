@@ -1,10 +1,20 @@
 package rhsm2
 
 import (
+	"github.com/google/uuid"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 )
+
+// TestCreateXCorrelationID test the createCorrelationId()
+func TestCreateXCorrelationID(t *testing.T) {
+	xCorrelationId := createCorrelationId()
+	err := uuid.Validate(xCorrelationId)
+	if err != nil {
+		t.Fatalf("%s is not valid correlation ID", xCorrelationId)
+	}
+}
 
 // TestCreateHTTPsClientProxyFromConf test the case, when proxy server
 // is used. The /status endpoint is used for testing

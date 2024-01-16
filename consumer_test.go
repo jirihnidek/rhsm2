@@ -33,12 +33,12 @@ func TestGetConsumerUUID(t *testing.T) {
 		t.Fatalf("unable to setup testing rhsm client: %s", err)
 	}
 
-	uuid, err := rhsmClient.GetConsumerUUID()
+	consumerUuid, err := rhsmClient.GetConsumerUUID()
 	if err != nil {
 		t.Fatalf("unable to get consumer UUID from consumer cert: %s", err)
 	} else {
-		if *uuid != "5e9745d5-624d-4af1-916e-2c17df4eb4e8" {
-			t.Fatalf("consumer UUID: '%s' != '5e9745d5-624d-4af1-916e-2c17df4eb4e8'", *uuid)
+		if *consumerUuid != "5e9745d5-624d-4af1-916e-2c17df4eb4e8" {
+			t.Fatalf("consumer UUID: '%s' != '5e9745d5-624d-4af1-916e-2c17df4eb4e8'", *consumerUuid)
 		}
 	}
 }
