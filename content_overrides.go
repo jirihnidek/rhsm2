@@ -17,22 +17,25 @@ type ContentOverride struct {
 	Value        string `json:"value"`
 }
 
-// GetContentOverrides tries to get content overrides from server
-func (rhsmClient *RHSMClient) GetContentOverrides() ([]ContentOverride, error) {
+// getContentOverrides tries to get content overrides from server
+func (rhsmClient *RHSMClient) getContentOverrides(xCorrelationId string) ([]ContentOverride, error) {
 	var contentOverrides []ContentOverride
 
-	uuid, err := rhsmClient.GetConsumerUUID()
+	consumerUuid, err := rhsmClient.GetConsumerUUID()
 
 	if err != nil {
 		return nil, err
 	}
 
+	var headers = make(map[string]string)
+	headers["X-Correlation-ID"] = xCorrelationId
+
 	res, err := rhsmClient.ConsumerCertAuthConnection.request(
 		http.MethodGet,
-		"consumers/"+*uuid+"/content_overrides",
+		"consumers/"+*consumerUuid+"/content_overrides",
 		"",
 		"",
-		nil,
+		&headers,
 		nil,
 	)
 	if err != nil {
@@ -53,7 +56,7 @@ func (rhsmClient *RHSMClient) GetContentOverrides() ([]ContentOverride, error) {
 		log.Error().Msgf("insufficient permissions")
 		return nil, fmt.Errorf("unable to get content overrides")
 	case 404:
-		log.Error().Msgf("consumer with UUID: %s could no be found", *uuid)
+		log.Error().Msgf("consumer with UUID: %s could no be found", *consumerUuid)
 		return nil, fmt.Errorf("unable to get content overrides")
 	case 500:
 		log.Error().Msgf("an unexpected exception has occurred")
