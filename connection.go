@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"github.com/google/uuid"
 	"github.com/henvic/httpretty"
+	"github.com/jirihnidek/rhsm2/constants"
 	"github.com/rs/zerolog/log"
 	"io"
 	"net"
@@ -46,6 +47,35 @@ type RHSMConnection struct {
 // createCorrelationId
 func createCorrelationId() string {
 	return uuid.New().String()
+}
+
+// UserAgentInfo holds information about current client connected
+// to candlepin server
+type UserAgentInfo struct {
+	BaseString string
+	Command    string
+}
+
+var (
+
+	// UserAgent is the HTTP header used in each HTTP request
+	UserAgent = UserAgentInfo{
+		"RHSM/" + constants.ApiVersion,
+		"",
+	}
+)
+
+// SetUserAgentCmd set command of UserAgent
+func SetUserAgentCmd(userAgentCmd string) {
+	UserAgent.Command = userAgentCmd
+}
+
+// String returns textual representation of UserAgent
+func (userAgent UserAgentInfo) String() string {
+	if userAgent.Command != "" {
+		return userAgent.BaseString + " (cmd=" + userAgent.Command + ")"
+	}
+	return userAgent.BaseString
 }
 
 // request tries to call HTTP request to candlepin server
@@ -99,7 +129,7 @@ func (connection *RHSMConnection) request(
 	}
 
 	// Add basic headers
-	req.Header.Add("User-Agent", "sub-man 0.1")
+	req.Header.Add("User-Agent", UserAgent.String())
 
 	// If "Accept" header is not specified, then request JSON in response
 	var acceptExists = false
