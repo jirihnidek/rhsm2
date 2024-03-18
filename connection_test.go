@@ -16,6 +16,26 @@ func TestCreateXCorrelationID(t *testing.T) {
 	}
 }
 
+// TestUserAgentString test the case, when client has not set command of UserAgent
+// String() method should return default value
+func TestUserAgentString(t *testing.T) {
+	userAgentStr := UserAgent.String()
+	expectedUserAgent := "RHSM/2.0"
+	if userAgentStr != expectedUserAgent {
+		t.Fatalf("expected UserAgent: \"%s\", got: \"%s\"", expectedUserAgent, userAgentStr)
+	}
+}
+
+// TestSetUserAgentCmd test the case, when client set command of UserAgent
+func TestSetUserAgentCmd(t *testing.T) {
+	SetUserAgentCmd("foo-cmd")
+	userAgentStr := UserAgent.String()
+	expectedUserAgent := "RHSM/2.0 (cmd=foo-cmd)"
+	if userAgentStr != expectedUserAgent {
+		t.Fatalf("expected UserAgent: \"%s\", got: \"%s\"", expectedUserAgent, userAgentStr)
+	}
+}
+
 // TestCreateHTTPsClientProxyFromConf test the case, when proxy server
 // is used. The /status endpoint is used for testing
 func TestCreateHTTPsClientProxyFromConf(t *testing.T) {
