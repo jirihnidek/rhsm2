@@ -145,6 +145,7 @@ func (rhsmClient *RHSMClient) GetOrgs(
 		"",
 		"",
 		&headers,
+		nil,
 		nil)
 	if err != nil {
 		return organizations, fmt.Errorf("unable to get list of org IDs: %s", err)
@@ -167,6 +168,7 @@ func (rhsmClient *RHSMClient) GetOrgs(
 func (rhsmClient *RHSMClient) registerSystem(
 	headers map[string]string,
 	query string,
+	clientInfo *ClientInfo,
 ) (*ConsumerData, error) {
 	isActivationKeyUsed := false
 	if strings.Contains(query, "&activation_keys=") {
@@ -220,7 +222,8 @@ func (rhsmClient *RHSMClient) registerSystem(
 		query,
 		"",
 		&headers,
-		&body)
+		&body,
+		clientInfo)
 
 	if err != nil {
 		return nil, err
@@ -294,7 +297,7 @@ func (rhsmClient *RHSMClient) registerSystem(
 		// there can be some content override associated with one of
 		// activation keys
 		getContentOverrides := isActivationKeyUsed
-		err = rhsmClient.enableContent(getContentOverrides, headers["X-Correlation-ID"])
+		err = rhsmClient.enableContent(getContentOverrides, clientInfo)
 		if err != nil {
 			return nil, err
 		}
@@ -310,10 +313,11 @@ func (rhsmClient *RHSMClient) registerSystem(
 func (rhsmClient *RHSMClient) RegisterOrgActivationKeys(
 	org *string,
 	activationKeys []string,
+	clientInfo *ClientInfo,
 ) (*ConsumerData, error) {
 	var headers = make(map[string]string)
 
-	headers["X-Correlation-ID"] = createCorrelationId()
+	clientInfo.xCorrelationId = createCorrelationId()
 
 	var strActivationKeys string
 	for idx, activationKey := range activationKeys {
@@ -325,7 +329,7 @@ func (rhsmClient *RHSMClient) RegisterOrgActivationKeys(
 
 	query := "owner=" + *org + "&activation_keys=" + strActivationKeys
 
-	return rhsmClient.registerSystem(headers, query)
+	return rhsmClient.registerSystem(headers, query, clientInfo)
 }
 
 // RegisterUsernamePasswordOrg tries to register system using organization id, username and password
@@ -333,13 +337,14 @@ func (rhsmClient *RHSMClient) RegisterUsernamePasswordOrg(
 	username *string,
 	password *string,
 	org *string,
+	clientInfo *ClientInfo,
 ) (*ConsumerData, error) {
 	var headers = make(map[string]string)
 
 	headers["username"] = *username
 	headers["password"] = *password
 
-	headers["X-Correlation-ID"] = createCorrelationId()
+	clientInfo.xCorrelationId = createCorrelationId()
 
 	var query string
 	if *org != "" {
@@ -348,7 +353,7 @@ func (rhsmClient *RHSMClient) RegisterUsernamePasswordOrg(
 		query = ""
 	}
 
-	return rhsmClient.registerSystem(headers, query)
+	return rhsmClient.registerSystem(headers, query, clientInfo)
 }
 
 // createProductMap tries to create map of entitlement certificates
@@ -382,7 +387,7 @@ type ContentOverridesResult struct {
 // enableContent tries to get SCA entitlement certificate and generate redhat.repo from these
 // certificates. Note: candlepin returns only one SCA certificate, but it returns it
 // in the list. Thus, in theory more certificates could be returned.
-func (rhsmClient *RHSMClient) enableContent(getContentOverrides bool, xCorrelationId string) error {
+func (rhsmClient *RHSMClient) enableContent(getContentOverrides bool, info *ClientInfo) error {
 	var waitGroup sync.WaitGroup
 
 	// Try to get SCA entitlement certificate and key asynchronously
@@ -391,7 +396,7 @@ func (rhsmClient *RHSMClient) enableContent(getContentOverrides bool, xCorrelati
 	waitGroup.Add(1)
 	go func(wg *sync.WaitGroup, result chan EntCertKeysResult) {
 		defer wg.Done()
-		entCertKeys, err := rhsmClient.getSCAEntitlementCertificates(xCorrelationId)
+		entCertKeys, err := rhsmClient.getSCAEntitlementCertificates(info)
 		entCertKeyResult := EntCertKeysResult{entCertKeys, err}
 		result <- entCertKeyResult
 	}(&waitGroup, entCertKeysChan)
@@ -404,7 +409,7 @@ func (rhsmClient *RHSMClient) enableContent(getContentOverrides bool, xCorrelati
 		waitGroup.Add(1)
 		go func(wg *sync.WaitGroup, result chan ContentOverridesResult) {
 			defer wg.Done()
-			contentOverridesList, err := rhsmClient.getContentOverrides(xCorrelationId)
+			contentOverridesList, err := rhsmClient.getContentOverrides(info)
 			contentOverridesResult := ContentOverridesResult{contentOverridesList, err}
 			result <- contentOverridesResult
 		}(&waitGroup, contentOverridesChan)

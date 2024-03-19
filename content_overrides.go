@@ -18,7 +18,7 @@ type ContentOverride struct {
 }
 
 // getContentOverrides tries to get content overrides from server
-func (rhsmClient *RHSMClient) getContentOverrides(xCorrelationId string) ([]ContentOverride, error) {
+func (rhsmClient *RHSMClient) getContentOverrides(info *ClientInfo) ([]ContentOverride, error) {
 	var contentOverrides []ContentOverride
 
 	consumerUuid, err := rhsmClient.GetConsumerUUID()
@@ -28,7 +28,6 @@ func (rhsmClient *RHSMClient) getContentOverrides(xCorrelationId string) ([]Cont
 	}
 
 	var headers = make(map[string]string)
-	headers["X-Correlation-ID"] = xCorrelationId
 
 	res, err := rhsmClient.ConsumerCertAuthConnection.request(
 		http.MethodGet,
@@ -37,6 +36,7 @@ func (rhsmClient *RHSMClient) getContentOverrides(xCorrelationId string) ([]Cont
 		"",
 		&headers,
 		nil,
+		info,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("unable to get content overrides: %s", err)
