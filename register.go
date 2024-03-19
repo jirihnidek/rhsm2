@@ -130,6 +130,7 @@ type OrganizationData struct {
 func (rhsmClient *RHSMClient) GetOrgs(
 	username string,
 	password string,
+	clientInfo *ClientInfo,
 ) ([]OrganizationData, error) {
 	var organizations []OrganizationData
 	var headers = make(map[string]string)
@@ -137,7 +138,10 @@ func (rhsmClient *RHSMClient) GetOrgs(
 	headers["username"] = username
 	headers["password"] = password
 
-	headers["X-Correlation-ID"] = createCorrelationId()
+	if clientInfo == nil {
+		clientInfo = &ClientInfo{"", "", ""}
+	}
+	clientInfo.xCorrelationId = createCorrelationId()
 
 	res, err := rhsmClient.NoAuthConnection.request(
 		http.MethodGet,
@@ -317,6 +321,9 @@ func (rhsmClient *RHSMClient) RegisterOrgActivationKeys(
 ) (*ConsumerData, error) {
 	var headers = make(map[string]string)
 
+	if clientInfo == nil {
+		clientInfo = &ClientInfo{"", "", ""}
+	}
 	clientInfo.xCorrelationId = createCorrelationId()
 
 	var strActivationKeys string
@@ -344,6 +351,9 @@ func (rhsmClient *RHSMClient) RegisterUsernamePasswordOrg(
 	headers["username"] = *username
 	headers["password"] = *password
 
+	if clientInfo == nil {
+		clientInfo = &ClientInfo{"", "", ""}
+	}
 	clientInfo.xCorrelationId = createCorrelationId()
 
 	var query string

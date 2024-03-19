@@ -117,6 +117,10 @@ func (rhsmClient *RHSMClient) Unregister(clientInfo *ClientInfo) error {
 	}
 
 	var headers = make(map[string]string)
+
+	if clientInfo == nil {
+		clientInfo = &ClientInfo{"", "", ""}
+	}
 	clientInfo.xCorrelationId = createCorrelationId()
 
 	res, err := rhsmClient.ConsumerCertAuthConnection.request(

@@ -72,8 +72,7 @@ func TestGetContentOverrides(t *testing.T) {
 		t.Fatalf("unable to setup testing rhsm client: %s", err)
 	}
 
-	clientInfo := ClientInfo{"", "", "66bf0b7a-aaae-4b31-a7bf-bc22052afebf"}
-	contentOverrides, err := rhsmClient.getContentOverrides(&clientInfo)
+	contentOverrides, err := rhsmClient.getContentOverrides(nil)
 	if err != nil {
 		t.Fatalf("unable to get list of content overrides: %s", err)
 	}
@@ -137,8 +136,7 @@ func TestGetContentOverridesInsufficientPermissions(t *testing.T) {
 		t.Fatalf("unable to setup testing rhsm client: %s", err)
 	}
 
-	clientInfo := ClientInfo{"", "", "66bf0b7a-aaae-4b31-a7bf-bc22052afebf"}
-	_, err = rhsmClient.getContentOverrides(&clientInfo)
+	_, err = rhsmClient.getContentOverrides(nil)
 	if err == nil {
 		t.Fatalf("no error raised, when server responses with 403 status code")
 	}
@@ -193,8 +191,7 @@ func TestGetContentOverridesWrongConsumer(t *testing.T) {
 		t.Fatalf("unable to setup testing rhsm client: %s", err)
 	}
 
-	clientInfo := ClientInfo{"", "", "66bf0b7a-aaae-4b31-a7bf-bc22052afebf"}
-	_, err = rhsmClient.getContentOverrides(&clientInfo)
+	_, err = rhsmClient.getContentOverrides(nil)
 	if err == nil {
 		t.Fatalf("no error raised, when server responses with 404 status code")
 	}
@@ -249,8 +246,7 @@ func TestGetContentOverridesInternalServerError(t *testing.T) {
 		t.Fatalf("unable to setup testing rhsm client: %s", err)
 	}
 
-	clientInfo := ClientInfo{"", "", "66bf0b7a-aaae-4b31-a7bf-bc22052afebf"}
-	_, err = rhsmClient.getContentOverrides(&clientInfo)
+	_, err = rhsmClient.getContentOverrides(nil)
 	if err == nil {
 		t.Fatalf("no error raised, when server responses with 500 status code")
 	}
