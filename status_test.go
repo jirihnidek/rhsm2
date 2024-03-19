@@ -77,8 +77,7 @@ func TestGetServerStatus(t *testing.T) {
 		t.Fatalf("unable to setup testing rhsm client: %s", err)
 	}
 
-	clientInfo := ClientInfo{"", "", ""}
-	serverStatus, err := rhsmClient.GetServerStatus(&clientInfo)
+	serverStatus, err := rhsmClient.GetServerStatus(nil)
 	if err != nil {
 		t.Fatalf("getting server status failed: %s", err)
 	}
@@ -144,8 +143,7 @@ func TestGetServerStatusInternalServerError(t *testing.T) {
 		t.Fatalf("unable to setup testing rhsm client: %s", err)
 	}
 
-	clientInfo := ClientInfo{"", "", "66bf0b7a-aaae-4b31-a7bf-bc22052afebf"}
-	_, err = rhsmClient.GetServerStatus(&clientInfo)
+	_, err = rhsmClient.GetServerStatus(nil)
 	if err == nil {
 		t.Fatalf("no error raised, when there was internal server error")
 	}
