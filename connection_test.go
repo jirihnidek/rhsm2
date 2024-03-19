@@ -1,6 +1,7 @@
 package rhsm2
 
 import (
+	"fmt"
 	"github.com/google/uuid"
 	"net/http"
 	"net/http/httptest"
@@ -33,6 +34,96 @@ func TestSetUserAgentCmd(t *testing.T) {
 	expectedUserAgent := "RHSM/2.0 (cmd=foo-cmd)"
 	if userAgentStr != expectedUserAgent {
 		t.Fatalf("expected UserAgent: \"%s\", got: \"%s\"", expectedUserAgent, userAgentStr)
+	}
+}
+
+// TestGetServerStatusClientInfo test the case, when we try to
+// call some REST API call with not empty ClientInfo structure
+func TestGetServerStatusClientInfo(t *testing.T) {
+	handlerCounter := 0
+	expectedLocale := "de-DE"
+	expectedDBusSender := "foo-dbus-client"
+	expectedUserAgentCmd := "tester"
+
+	server := httptest.NewTLSServer(
+		// It is expected that GetServerStatus() will call only
+		// one REST API point
+		http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
+			// Increase number of calls
+			handlerCounter += 1
+
+			// Test request method
+			if req.Method != http.MethodGet {
+				t.Fatalf("extepected request method: %s, got: %s", http.MethodGet, req.Method)
+			}
+
+			// Test that requested URL is correct
+			expectedURL := "/status"
+			reqURL := req.URL.String()
+			if reqURL != expectedURL {
+				t.Fatalf("expected request URL: %s, got: %s", expectedURL, reqURL)
+			}
+
+			// Test that HTTP headers are correct
+			xCorrelationId := req.Header.Get("X-Correlation-ID")
+			if xCorrelationId == "" {
+				t.Fatalf("X-Correlation-ID is empty string")
+			}
+			locale := req.Header.Get("Accept-Language")
+			if locale != expectedLocale {
+				t.Fatalf("expected Accept-Language HTTP header: %s, got: %s", expectedLocale, locale)
+			}
+			userAgent := req.Header.Get("User-Agent")
+			expectedUserAgent := fmt.Sprintf(
+				"RHSM/2.0 (cmd=%s) (dbus_sender=%s)",
+				expectedUserAgentCmd,
+				expectedDBusSender,
+			)
+			if userAgent != expectedUserAgent {
+				t.Fatalf("expected User-Agent HTTP header: %s, got: %s", expectedUserAgent, userAgent)
+			}
+
+			// Return code 200
+			rw.WriteHeader(200)
+			// Add some headers specific for candlepin server
+			rw.Header().Add("x-candlepin-request-uuid", "168e3687-8498-46b2-af0a-272583d4d4ba")
+			// Return empty body
+			_, _ = rw.Write([]byte(serverStatusResponse))
+		}))
+	defer server.Close()
+
+	// Create root directory for this test
+	tempDirFilePath := t.TempDir()
+
+	// Setup filesystem for the case, when system is only registered,
+	// but no entitlement cert/key has been installed yet
+	testingFiles, err := setupTestingFileSystem(
+		tempDirFilePath, false, false, false, false, true)
+	if err != nil {
+		t.Fatalf("unable to setup testing environment: %s", err)
+	}
+
+	rhsmClient, err := setupTestingRHSMClient(testingFiles, server)
+	if err != nil {
+		t.Fatalf("unable to setup testing rhsm client: %s", err)
+	}
+
+	SetUserAgentCmd(expectedUserAgentCmd)
+
+	clientInfo := ClientInfo{expectedLocale, expectedDBusSender, ""}
+	serverStatus, err := rhsmClient.GetServerStatus(&clientInfo)
+	if err != nil {
+		t.Fatalf("getting server status failed: %s", err)
+	}
+
+	if handlerCounter != 1 {
+		t.Fatalf("handler for getting server status REST API pointed not called once, but called: %d",
+			handlerCounter)
+	}
+
+	expectedServerVer := "4.3.8"
+	if serverStatus.Version != expectedServerVer {
+		t.Fatalf("expected server version: %s, got: %s", expectedServerVer, serverStatus.Version)
 	}
 }
 
@@ -91,7 +182,8 @@ func TestCreateHTTPsClientProxyFromConf(t *testing.T) {
 	rhsmClient.RHSMConf.Server.ProxyUser = "user"
 	rhsmClient.RHSMConf.Server.ProxyPassword = "secret"
 
-	serverStatus, err := rhsmClient.GetServerStatus()
+	clientInfo := ClientInfo{"", "", "66bf0b7a-aaae-4b31-a7bf-bc22052afebf"}
+	serverStatus, err := rhsmClient.GetServerStatus(&clientInfo)
 	if err != nil {
 		t.Fatalf("getting server status failed: %s", err)
 	}

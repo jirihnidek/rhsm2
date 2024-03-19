@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"github.com/google/uuid"
 	"github.com/henvic/httpretty"
+	"github.com/jeandeaual/go-locale"
 	"github.com/jirihnidek/rhsm2/constants"
 	"github.com/rs/zerolog/log"
 	"io"
@@ -56,8 +57,19 @@ type UserAgentInfo struct {
 	Command    string
 }
 
-var (
+// ClientInfo holds information about current client triggering
+// given HTTP request. Information in this structure could not
+// be stored in rhsmClient, because RHSM client could be also
+// rhsm2.service providing D-Bus API and each D-Bus client
+// communicating over D-Bus can have different preferences
+// (e.g. locale).
+type ClientInfo struct {
+	Locale         string
+	DBusSender     string
+	xCorrelationId string
+}
 
+var (
 	// UserAgent is the HTTP header used in each HTTP request
 	UserAgent = UserAgentInfo{
 		"RHSM/" + constants.ApiVersion,
@@ -86,6 +98,7 @@ func (connection *RHSMConnection) request(
 	fragment string,
 	headers *map[string]string,
 	body *[]byte,
+	clientInfo *ClientInfo,
 ) (*http.Response, error) {
 
 	requestURL := url.URL{
@@ -128,8 +141,32 @@ func (connection *RHSMConnection) request(
 		}
 	}
 
-	// Add basic headers
-	req.Header.Add("User-Agent", UserAgent.String())
+	// Always add HTTP header UserAgent
+	if clientInfo != nil && clientInfo.DBusSender != "" {
+		req.Header.Add(
+			"User-Agent",
+			fmt.Sprintf("%s (dbus_sender=%s)", UserAgent.String(), clientInfo.DBusSender),
+		)
+	} else {
+		req.Header.Add("User-Agent", UserAgent.String())
+	}
+
+	// Always add HTTP header Accept-Language
+	if clientInfo != nil && clientInfo.Locale != "" {
+		req.Header.Add("Accept-Language", clientInfo.Locale)
+	} else {
+		userLocale, err := locale.GetLocale()
+		if err != nil {
+			req.Header.Add("Accept-Language", "c")
+		} else {
+			req.Header.Add("Accept-Language", userLocale)
+		}
+	}
+
+	// Try to add HTTP header X-Correlation-Id
+	if clientInfo != nil && clientInfo.xCorrelationId != "" {
+		req.Header.Add("X-Correlation-Id", clientInfo.xCorrelationId)
+	}
 
 	// If "Accept" header is not specified, then request JSON in response
 	var acceptExists = false

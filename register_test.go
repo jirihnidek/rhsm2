@@ -171,7 +171,7 @@ func TestRegisterUsernamePasswordOrg(t *testing.T) {
 				// Check X-Correlation-ID
 				currentXCorrId := req.Header.Get("X-Correlation-ID")
 				if xCorrelationId != currentXCorrId {
-					t.Fatalf("X-Correlation-ID %s does not match ID: %s from first HTTP request",
+					t.Fatalf("X-Correlation-ID: %s does not match ID: %s from the first HTTP request",
 						currentXCorrId, xCorrelationId)
 				}
 
@@ -205,7 +205,8 @@ func TestRegisterUsernamePasswordOrg(t *testing.T) {
 	// TODO: try to use secure connection
 	rhsmClient.RHSMConf.Server.Insecure = true
 
-	consumer, err := rhsmClient.RegisterUsernamePasswordOrg(&username, &password, &org)
+	clientInfo := ClientInfo{"", "", "66bf0b7a-aaae-4b31-a7bf-bc22052afebf"}
+	consumer, err := rhsmClient.RegisterUsernamePasswordOrg(&username, &password, &org, &clientInfo)
 	if err != nil {
 		t.Fatalf("registration failed: %s", err)
 	}
@@ -283,7 +284,8 @@ func TestFailedRegisterUsernamePasswordOrg(t *testing.T) {
 	// TODO: try to use secure connection
 	rhsmClient.RHSMConf.Server.Insecure = true
 
-	consumer, err := rhsmClient.RegisterUsernamePasswordOrg(&username, &password, &org)
+	clientInfo := ClientInfo{"", "", "66bf0b7a-aaae-4b31-a7bf-bc22052afebf"}
+	consumer, err := rhsmClient.RegisterUsernamePasswordOrg(&username, &password, &org, &clientInfo)
 	if err == nil {
 		t.Fatalf("registration not failed, when wrong password provided")
 	}
@@ -362,7 +364,8 @@ func TestRegisterUsernamePasswordOrgNoSyspurpose(t *testing.T) {
 	// TODO: try to use secure connection
 	rhsmClient.RHSMConf.Server.Insecure = true
 
-	consumer, err := rhsmClient.RegisterUsernamePasswordOrg(&username, &password, &org)
+	clientInfo := ClientInfo{"", "", "66bf0b7a-aaae-4b31-a7bf-bc22052afebf"}
+	consumer, err := rhsmClient.RegisterUsernamePasswordOrg(&username, &password, &org, &clientInfo)
 	if err != nil {
 		t.Fatalf("registration failed: %s", err)
 	}
@@ -583,7 +586,8 @@ func TestRegisterActivationKeyOrg(t *testing.T) {
 	rhsmClient.RHSMConf.Server.Insecure = true
 
 	activationKeys := []string{activationKey}
-	consumer, err := rhsmClient.RegisterOrgActivationKeys(&orgId, activationKeys)
+	clientInfo := ClientInfo{"", "", "66bf0b7a-aaae-4b31-a7bf-bc22052afebf"}
+	consumer, err := rhsmClient.RegisterOrgActivationKeys(&orgId, activationKeys, &clientInfo)
 	if err != nil {
 		t.Fatalf("registration failed: %s", err)
 	}
@@ -683,7 +687,8 @@ func TestRegisterActivationKeyOrgContentOverride(t *testing.T) {
 	rhsmClient.RHSMConf.Server.Insecure = true
 
 	activationKeys := []string{activationKey}
-	consumer, err := rhsmClient.RegisterOrgActivationKeys(&orgId, activationKeys)
+	clientInfo := ClientInfo{"", "", "66bf0b7a-aaae-4b31-a7bf-bc22052afebf"}
+	consumer, err := rhsmClient.RegisterOrgActivationKeys(&orgId, activationKeys, &clientInfo)
 	if err != nil {
 		t.Fatalf("registration failed: %s", err)
 	}
@@ -902,7 +907,8 @@ func TestRegisterTwoActivationsKeyOrg(t *testing.T) {
 	// TODO: try to use secure connection
 	rhsmClient.RHSMConf.Server.Insecure = true
 
-	consumer, err := rhsmClient.RegisterOrgActivationKeys(&orgId, activationKeys[:])
+	clientInfo := ClientInfo{"", "", "66bf0b7a-aaae-4b31-a7bf-bc22052afebf"}
+	consumer, err := rhsmClient.RegisterOrgActivationKeys(&orgId, activationKeys[:], &clientInfo)
 	if err != nil {
 		t.Fatalf("registration failed: %s", err)
 	}

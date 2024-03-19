@@ -37,12 +37,12 @@ type RHSMStatus struct {
 
 // GetServerStatus tries to get status from the server. This
 // method is possible to call, when server is connected or not
-func (rhsmClient *RHSMClient) GetServerStatus() (*RHSMStatus, error) {
+func (rhsmClient *RHSMClient) GetServerStatus(clientInfo *ClientInfo) (*RHSMStatus, error) {
 	var rhsmStatus RHSMStatus
 	var connection *RHSMConnection
 
 	var headers = make(map[string]string)
-	headers["X-Correlation-ID"] = createCorrelationId()
+	clientInfo.xCorrelationId = createCorrelationId()
 
 	_, err := rhsmClient.GetConsumerUUID()
 	if err == nil {
@@ -61,6 +61,7 @@ func (rhsmClient *RHSMClient) GetServerStatus() (*RHSMStatus, error) {
 		"",
 		&headers,
 		nil,
+		clientInfo,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("unable to get server status :%v", err)

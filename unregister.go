@@ -109,7 +109,7 @@ func (rhsmClient *RHSMClient) Clean() error {
 }
 
 // Unregister tries to unregister system
-func (rhsmClient *RHSMClient) Unregister() error {
+func (rhsmClient *RHSMClient) Unregister(clientInfo *ClientInfo) error {
 	consumerUuid, err := rhsmClient.GetConsumerUUID()
 
 	if err != nil {
@@ -117,7 +117,7 @@ func (rhsmClient *RHSMClient) Unregister() error {
 	}
 
 	var headers = make(map[string]string)
-	headers["X-Correlation-ID"] = createCorrelationId()
+	clientInfo.xCorrelationId = createCorrelationId()
 
 	res, err := rhsmClient.ConsumerCertAuthConnection.request(
 		http.MethodDelete,
@@ -125,7 +125,9 @@ func (rhsmClient *RHSMClient) Unregister() error {
 		"",
 		"",
 		&headers,
-		nil)
+		nil,
+		clientInfo,
+	)
 
 	// When we are not able to call REST API call, then cancel registration process.
 	// We should not delete installed data, because we would not be able to unregister

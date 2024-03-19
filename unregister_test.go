@@ -158,7 +158,8 @@ func TestUnregisterRegisteredSystem(t *testing.T) {
 	}
 
 	// Calling tested function!
-	err = rhsmClient.Unregister()
+	clientInfo := ClientInfo{"", "", "66bf0b7a-aaae-4b31-a7bf-bc22052afebf"}
+	err = rhsmClient.Unregister(&clientInfo)
 
 	if err != nil {
 		t.Fatalf("unregistering failed with error: %s", err)
@@ -266,7 +267,8 @@ func TestUnregisterRegisteredSystemReadOnlyFileSystem(t *testing.T) {
 	}
 
 	// Calling tested function!
-	err = rhsmClient.Unregister()
+	clientInfo := ClientInfo{"", "", "66bf0b7a-aaae-4b31-a7bf-bc22052afebf"}
+	err = rhsmClient.Unregister(&clientInfo)
 	if err != nil {
 		t.Fatalf("unregistering failed with error: %s", err)
 	}
@@ -320,7 +322,8 @@ func TestUnregisterUnRegisteredSystem(t *testing.T) {
 		t.Fatalf("unable to setup testing rhsm client: %s", err)
 	}
 
-	err = rhsmClient.Unregister()
+	clientInfo := ClientInfo{"", "", "66bf0b7a-aaae-4b31-a7bf-bc22052afebf"}
+	err = rhsmClient.Unregister(&clientInfo)
 	if err == nil {
 		t.Fatalf("unregistering failed with no error")
 	}
@@ -381,7 +384,8 @@ func TestUnregisterDeletedConsumer(t *testing.T) {
 		t.Fatalf("unable to setup testing rhsm client: %s", err)
 	}
 
-	err = rhsmClient.Unregister()
+	clientInfo := ClientInfo{"", "", "66bf0b7a-aaae-4b31-a7bf-bc22052afebf"}
+	err = rhsmClient.Unregister(&clientInfo)
 	if err == nil {
 		t.Fatalf("unregistering failed with no error")
 	}
@@ -443,7 +447,8 @@ func TestUnregisterWrongConsumer(t *testing.T) {
 		t.Fatalf("unable to setup testing rhsm client: %s", err)
 	}
 
-	err = rhsmClient.Unregister()
+	clientInfo := ClientInfo{"", "", "66bf0b7a-aaae-4b31-a7bf-bc22052afebf"}
+	err = rhsmClient.Unregister(&clientInfo)
 	if err == nil {
 		t.Fatalf("unregistering failed with no error")
 	}
@@ -506,7 +511,8 @@ func TestUnregisterInternalServerError(t *testing.T) {
 		t.Fatalf("unable to setup testing rhsm client: %s", err)
 	}
 
-	err = rhsmClient.Unregister()
+	clientInfo := ClientInfo{"", "", "66bf0b7a-aaae-4b31-a7bf-bc22052afebf"}
+	err = rhsmClient.Unregister(&clientInfo)
 	if err == nil {
 		t.Fatalf("unregistering failed with no error")
 	}
