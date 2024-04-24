@@ -156,7 +156,7 @@ func (connection *RHSMConnection) request(
 		req.Header.Add("Accept-Language", clientInfo.Locale)
 	} else {
 		userLocale, err := locale.GetLocale()
-		if err != nil {
+		if err != nil || userLocale == "" {
 			req.Header.Add("Accept-Language", "c")
 		} else {
 			req.Header.Add("Accept-Language", userLocale)
