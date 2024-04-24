@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"sync"
 )
 
 // RHSMClient contains information about client. It can hold up to 3 different
@@ -19,8 +20,26 @@ type RHSMClient struct {
 	EntitlementCertAuthConnection *RHSMConnection
 }
 
-// CreateRHSMClient tries to create structure holding information
-func CreateRHSMClient(confFilePath *string) (*RHSMClient, error) {
+var singletonRhsmClient *RHSMClient
+var once sync.Once
+
+// GetRHSMClient tries to return instance of RHSMClient. If the instance
+// already exist, then existing instance is returned. The confFilePath
+// is used only in the first call of the function. It is just ignored
+// in any other next call.
+func GetRHSMClient(confFilePath *string) (*RHSMClient, error) {
+	var err error
+	once.Do(func() {
+		singletonRhsmClient, err = createRHSMClient(confFilePath)
+	})
+	if err != nil {
+		return nil, err
+	}
+	return singletonRhsmClient, nil
+}
+
+// createRHSMClient tries to create structure holding information about RHSM client
+func createRHSMClient(confFilePath *string) (*RHSMClient, error) {
 	var err error
 	var rhsmConf *RHSMConf
 
