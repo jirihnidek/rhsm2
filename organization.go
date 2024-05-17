@@ -52,7 +52,7 @@ func (rhsmClient *RHSMClient) GetOrgs(
 		"",
 		&headers,
 		nil,
-		nil)
+		clientInfo)
 	if err != nil {
 		return organizations, fmt.Errorf("unable to get list of org IDs: %s", err)
 	}
