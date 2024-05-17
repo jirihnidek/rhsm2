@@ -68,11 +68,7 @@ func TestGetOrganizations(t *testing.T) {
 	password := "admin"
 
 	server := httptest.NewTLSServer(
-		// It is expected that Register() method will call only
-		// two REST API points
 		http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
-			// Handler has to be a little bit more sophisticated in this
-			// case, because we have to handle two types of REST API calls
 
 			reqURL := req.URL.String()
 
