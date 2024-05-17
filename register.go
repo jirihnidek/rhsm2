@@ -17,10 +17,6 @@ type SystemFacts struct {
 	SystemCertificateVersion string `json:"system.certificate_version"`
 }
 
-type Environment struct {
-	Id string `json:"id"`
-}
-
 // RegisterData is structure representing JSON data used for register request
 type RegisterData struct {
 	Type              string             `json:"type"`
