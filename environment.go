@@ -7,23 +7,26 @@ import (
 )
 
 // Environment contains information about environment
-// returned form candlepin server
+// returned form candlepin server. The Owner is pointer
+// on structure, because this structure is also used
+// during registration and only ID of environment is
+// really necessary
 type Environment struct {
-	Created       string      `json:"created"`
-	Updated       string      `json:"updated"`
+	Created       string      `json:"created,omitempty"`
+	Updated       string      `json:"updated,omitempty"`
 	Id            string      `json:"id"`
-	Name          string      `json:"name"`
-	Type          interface{} `json:"type"`
-	Description   string      `json:"description"`
-	ContentPrefix interface{} `json:"contentPrefix"`
-	Owner         struct {
+	Name          string      `json:"name,omitempty"`
+	Type          interface{} `json:"type,omitempty"`
+	Description   string      `json:"description,omitempty"`
+	ContentPrefix interface{} `json:"contentPrefix,omitempty"`
+	Owner         *struct {
 		Id                string `json:"id"`
-		Key               string `json:"key"`
-		DisplayName       string `json:"displayName"`
-		Href              string `json:"href"`
-		ContentAccessMode string `json:"contentAccessMode"`
-	} `json:"owner"`
-	EnvironmentContent []interface{} `json:"environmentContent"`
+		Key               string `json:"key,omitempty"`
+		DisplayName       string `json:"displayName,omitempty"`
+		Href              string `json:"href,omitempty"`
+		ContentAccessMode string `json:"contentAccessMode,omitempty"`
+	} `json:"owner,omitempty"`
+	EnvironmentContent []interface{} `json:"environmentContent,omitempty"`
 }
 
 // GetEnvironments tries to get list of environments from candlepin server

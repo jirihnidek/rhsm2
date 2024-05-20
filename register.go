@@ -8,7 +8,6 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"strings"
 	"sync"
 )
 
@@ -28,7 +27,7 @@ type RegisterData struct {
 	AddOns            []interface{}      `json:"addOns"`
 	Usage             string             `json:"usage"`
 	ServiceLevel      string             `json:"serviceLevel"`
-	Environments      []string           `json:"environments"`
+	Environments      []Environment      `json:"environments"`
 }
 
 // ConsumerData is structure used for parsing JSON data returned during registration
@@ -56,8 +55,18 @@ type ConsumerData struct {
 		Href              string `json:"href"`
 		ContentAccessMode string `json:"contentAccessMode"`
 	} `json:"owner"`
-	Environment      interface{} `json:"environment"`
-	EntitlementCount int         `json:"entitlementCount"`
+	Environment struct {
+		Created            interface{} `json:"created"`
+		Updated            interface{} `json:"updated"`
+		Id                 interface{} `json:"id"`
+		Name               string      `json:"name"`
+		Type               interface{} `json:"type"`
+		Description        interface{} `json:"description"`
+		ContentPrefix      interface{} `json:"contentPrefix"`
+		Owner              interface{} `json:"owner"`
+		EnvironmentContent interface{} `json:"environmentContent"`
+	} `json:"environment"`
+	EntitlementCount int `json:"entitlementCount"`
 	Facts            struct {
 	} `json:"facts"`
 	LastCheckin       interface{} `json:"lastCheckin"`
@@ -95,7 +104,23 @@ type ConsumerData struct {
 	Href           string        `json:"href"`
 	ActivationKeys []interface{} `json:"activationKeys"`
 	ServiceType    interface{}   `json:"serviceType"`
-	Environments   interface{}   `json:"environments"`
+	Environments   []struct {
+		Created       string      `json:"created"`
+		Updated       string      `json:"updated"`
+		Id            string      `json:"id"`
+		Name          string      `json:"name"`
+		Type          interface{} `json:"type"`
+		Description   string      `json:"description"`
+		ContentPrefix interface{} `json:"contentPrefix"`
+		Owner         struct {
+			Id                string `json:"id"`
+			Key               string `json:"key"`
+			DisplayName       string `json:"displayName"`
+			Href              string `json:"href"`
+			ContentAccessMode string `json:"contentAccessMode"`
+		} `json:"owner"`
+		EnvironmentContent []interface{} `json:"environmentContent"`
+	} `json:"environments"`
 }
 
 // RegisterError is structure used for parsing JSON document returned
@@ -105,15 +130,48 @@ type RegisterError struct {
 	RequestUuid    string `json:"requestUuid"`
 }
 
+// RegisterOptions is structure containing various registration options
+type RegisterOptions struct {
+	username       *string
+	password       *string
+	organization   *string
+	activationKeys *[]string
+	environments   *[]string
+}
+
 // registerSystem tries to register system
 func (rhsmClient *RHSMClient) registerSystem(
-	headers map[string]string,
-	query string,
+	registerOptions *RegisterOptions,
 	clientInfo *ClientInfo,
 ) (*ConsumerData, error) {
-	isActivationKeyUsed := false
-	if strings.Contains(query, "&activation_keys=") {
-		isActivationKeyUsed = true
+	var headers = make(map[string]string)
+	var query string
+	var environments []Environment
+
+	if registerOptions.activationKeys != nil {
+		var strActivationKeys string
+		for idx, activationKey := range *registerOptions.activationKeys {
+			strActivationKeys += activationKey
+			if idx < len(*registerOptions.activationKeys)-1 {
+				strActivationKeys += ","
+			}
+		}
+		query = "owner=" + *registerOptions.organization + "&activation_keys=" + strActivationKeys
+	} else if registerOptions.username != nil && registerOptions.password != nil {
+		headers["username"] = *registerOptions.username
+		headers["password"] = *registerOptions.password
+
+		if *registerOptions.organization != "" {
+			query = "owner=" + *registerOptions.organization
+		} else {
+			query = ""
+		}
+
+		if *registerOptions.environments != nil {
+			for _, environment := range *registerOptions.environments {
+				environments = append(environments, Environment{Id: environment})
+			}
+		}
 	}
 
 	// It is necessary to set system certificate version to value 3.0 or higher
@@ -151,6 +209,7 @@ func (rhsmClient *RHSMClient) registerSystem(
 		ServiceLevel:      sysPurpose.ServiceLevelAgreement,
 		InstalledProducts: installedProducts,
 		ContentTags:       contentTags,
+		Environments:      environments,
 	}
 	body, err := json.Marshal(registerData)
 	if err != nil {
@@ -237,7 +296,7 @@ func (rhsmClient *RHSMClient) registerSystem(
 		// try to get content override during registration, because
 		// there can be some content override associated with one of
 		// activation keys
-		getContentOverrides := isActivationKeyUsed
+		getContentOverrides := registerOptions.activationKeys != nil
 		err = rhsmClient.enableContent(getContentOverrides, clientInfo)
 		if err != nil {
 			return nil, err
@@ -256,24 +315,17 @@ func (rhsmClient *RHSMClient) RegisterOrgActivationKeys(
 	activationKeys []string,
 	clientInfo *ClientInfo,
 ) (*ConsumerData, error) {
-	var headers = make(map[string]string)
+	var registerOptions RegisterOptions
 
 	if clientInfo == nil {
 		clientInfo = &ClientInfo{"", "", ""}
 	}
 	clientInfo.xCorrelationId = createCorrelationId()
 
-	var strActivationKeys string
-	for idx, activationKey := range activationKeys {
-		strActivationKeys += activationKey
-		if idx < len(activationKeys)-1 {
-			strActivationKeys += ","
-		}
-	}
+	registerOptions.organization = org
+	registerOptions.activationKeys = &activationKeys
 
-	query := "owner=" + *org + "&activation_keys=" + strActivationKeys
-
-	return rhsmClient.registerSystem(headers, query, clientInfo)
+	return rhsmClient.registerSystem(&registerOptions, clientInfo)
 }
 
 // RegisterUsernamePasswordOrg tries to register system using organization id, username and password
@@ -281,26 +333,21 @@ func (rhsmClient *RHSMClient) RegisterUsernamePasswordOrg(
 	username *string,
 	password *string,
 	org *string,
+	environments []string,
 	clientInfo *ClientInfo,
 ) (*ConsumerData, error) {
-	var headers = make(map[string]string)
-
-	headers["username"] = *username
-	headers["password"] = *password
+	var registerOptions RegisterOptions
+	registerOptions.username = username
+	registerOptions.password = password
+	registerOptions.organization = org
+	registerOptions.environments = &environments
 
 	if clientInfo == nil {
 		clientInfo = &ClientInfo{"", "", ""}
 	}
 	clientInfo.xCorrelationId = createCorrelationId()
 
-	var query string
-	if *org != "" {
-		query = "owner=" + *org
-	} else {
-		query = ""
-	}
-
-	return rhsmClient.registerSystem(headers, query, clientInfo)
+	return rhsmClient.registerSystem(&registerOptions, clientInfo)
 }
 
 // createProductMap tries to create map of entitlement certificates
