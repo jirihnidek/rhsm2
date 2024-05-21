@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 )
 
@@ -333,10 +334,26 @@ func (rhsmClient *RHSMClient) RegisterUsernamePasswordOrg(
 	username *string,
 	password *string,
 	org *string,
-	environments []string,
+	options *map[string]string,
 	clientInfo *ClientInfo,
 ) (*ConsumerData, error) {
 	var registerOptions RegisterOptions
+	var environments []string
+
+	// Parse all options first, when some provided
+	if options != nil {
+		for option, value := range *options {
+			switch option {
+			case "environments":
+				environments = strings.Split(value, ",")
+				break
+			default:
+				log.Warn().Msgf("unknown option: %s", option)
+				break
+			}
+		}
+	}
+
 	registerOptions.username = username
 	registerOptions.password = password
 	registerOptions.organization = org
