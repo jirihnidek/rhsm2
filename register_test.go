@@ -359,7 +359,7 @@ func TestRegisterUsernamePasswordOrgEnvironments(t *testing.T) {
 	username := "admin"
 	password := "admin"
 	org := "donaldduck"
-	environemts := []string{"env-id-1", "env-id-2"}
+	options := map[string]string{"environments": "env-id-1,env-id-2", "foo": "bar"}
 
 	server := httptest.NewTLSServer(
 		// It is expected that Register() method will call only
@@ -423,7 +423,7 @@ func TestRegisterUsernamePasswordOrgEnvironments(t *testing.T) {
 	// TODO: try to use secure connection
 	rhsmClient.RHSMConf.Server.Insecure = true
 
-	consumer, err := rhsmClient.RegisterUsernamePasswordOrg(&username, &password, &org, environemts, nil)
+	consumer, err := rhsmClient.RegisterUsernamePasswordOrg(&username, &password, &org, &options, nil)
 	if err != nil {
 		t.Fatalf("registration failed: %s", err)
 	}
