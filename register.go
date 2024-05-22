@@ -314,6 +314,7 @@ func (rhsmClient *RHSMClient) registerSystem(
 func (rhsmClient *RHSMClient) RegisterOrgActivationKeys(
 	org *string,
 	activationKeys []string,
+	options *map[string]string,
 	clientInfo *ClientInfo,
 ) (*ConsumerData, error) {
 	var registerOptions RegisterOptions
@@ -329,16 +330,16 @@ func (rhsmClient *RHSMClient) RegisterOrgActivationKeys(
 	return rhsmClient.registerSystem(&registerOptions, clientInfo)
 }
 
-// RegisterUsernamePasswordOrg tries to register system using organization id, username and password
-func (rhsmClient *RHSMClient) RegisterUsernamePasswordOrg(
+// RegisterUsernamePassword tries to register system using username and password
+func (rhsmClient *RHSMClient) RegisterUsernamePassword(
 	username *string,
 	password *string,
-	org *string,
 	options *map[string]string,
 	clientInfo *ClientInfo,
 ) (*ConsumerData, error) {
 	var registerOptions RegisterOptions
 	var environments []string
+	var org string
 
 	// Parse all options first, when some provided
 	if options != nil {
@@ -346,17 +347,17 @@ func (rhsmClient *RHSMClient) RegisterUsernamePasswordOrg(
 			switch option {
 			case "environments":
 				environments = strings.Split(value, ",")
-				break
+			case "org":
+				org = value
 			default:
 				log.Warn().Msgf("unknown option: %s", option)
-				break
 			}
 		}
 	}
 
 	registerOptions.username = username
 	registerOptions.password = password
-	registerOptions.organization = org
+	registerOptions.organization = &org
 	registerOptions.environments = &environments
 
 	if clientInfo == nil {
