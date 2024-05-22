@@ -130,6 +130,102 @@ func helperTestInstalledFiles(t *testing.T, tempDirFilePath string) {
 	}
 }
 
+// TestRegisterUsernamePassword test the case, when system is successfully
+// registered using username and password and no organization is provided
+// Registration without any organization is the most typical way how system
+// is registered
+func TestRegisterUsernamePassword(t *testing.T) {
+	t.Parallel()
+	expectedConsumerUUID := "0b497970-760f-4623-943a-673c125f5b8e"
+	handlerCounterConsumersPost := 0
+	handlerCounterGetCertificates := 0
+	var xCorrelationId string
+
+	username := "admin"
+	password := "admin"
+
+	server := httptest.NewTLSServer(
+		// It is expected that Register() method will call only
+		// two REST API points
+		http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
+			// Handler has to be a little bit more sophisticated in this
+			// case, because we have to handle two types of REST API calls
+
+			reqURL := req.URL.String()
+
+			if req.Method == http.MethodPost && reqURL == "/consumers" {
+				// Increase number of calls of this REST API endpoint
+				handlerCounterConsumersPost += 1
+				// Save correlation ID header for later checks
+				xCorrelationId = req.Header.Get("X-Correlation-ID")
+
+				// Return code 200
+				rw.WriteHeader(200)
+				// Add some headers specific for candlepin server
+				rw.Header().Add("x-candlepin-request-uuid", "168e3687-8498-46b2-af0a-272583d4d4ba")
+				// Return JSON document with consumer
+				_, _ = rw.Write([]byte(consumerCreatedResponse))
+			} else if req.Method == http.MethodGet && reqURL == "/consumers/"+expectedConsumerUUID+"/certificates" {
+				// Increase number of calls of this REST API endpoint
+				handlerCounterGetCertificates += 1
+
+				// Check X-Correlation-ID
+				currentXCorrId := req.Header.Get("X-Correlation-ID")
+				if xCorrelationId != currentXCorrId {
+					t.Fatalf("X-Correlation-ID: %s does not match ID: %s from the first HTTP request",
+						currentXCorrId, xCorrelationId)
+				}
+
+				// Return code 200
+				rw.WriteHeader(200)
+				// Add some headers specific for candlepin server
+				rw.Header().Add("x-candlepin-request-uuid", "168e3687-8498-46b2-af0a-272583d4d4ba")
+				// Return JSON document with consumer
+				_, _ = rw.Write([]byte(entitlementCertCreatedResponse))
+			} else {
+				t.Fatalf("unexpected REST API call: %s %s", req.Method, reqURL)
+			}
+
+		}))
+	defer server.Close()
+
+	// Create root directory for this test
+	tempDirFilePath := t.TempDir()
+
+	testingFiles, err := setupTestingFileSystem(
+		tempDirFilePath, true, false, false, false, true)
+	if err != nil {
+		t.Fatalf("unable to setup testing environment: %s", err)
+	}
+
+	rhsmClient, err := setupTestingRHSMClient(testingFiles, server)
+	if err != nil {
+		t.Fatalf("unable to setup testing rhsm client: %s", err)
+	}
+
+	// TODO: try to use secure connection
+	rhsmClient.RHSMConf.Server.Insecure = true
+
+	consumer, err := rhsmClient.RegisterUsernamePassword(&username, &password, nil, nil)
+	if err != nil {
+		t.Fatalf("registration failed: %s", err)
+	}
+
+	if consumer.Uuid != expectedConsumerUUID {
+		t.Fatalf("expected consumer UUID: %s, got: %s", expectedConsumerUUID, consumer.Uuid)
+	}
+
+	if handlerCounterConsumersPost != 1 {
+		t.Fatalf("REST API point POST /consumers not called once")
+	}
+
+	if handlerCounterGetCertificates != 1 {
+		t.Fatalf("REST API point GET /consumers/%s/certificates not called once", expectedConsumerUUID)
+	}
+
+	helperTestInstalledFiles(t, tempDirFilePath)
+}
+
 // TestRegisterUsernamePasswordOrg test the case, when system is successfully
 // registered using username and password
 func TestRegisterUsernamePasswordOrg(t *testing.T) {
@@ -142,6 +238,8 @@ func TestRegisterUsernamePasswordOrg(t *testing.T) {
 	username := "admin"
 	password := "admin"
 	org := "donaldduck"
+	var options = make(map[string]string)
+	options["org"] = org
 
 	server := httptest.NewTLSServer(
 		// It is expected that Register() method will call only
@@ -205,7 +303,7 @@ func TestRegisterUsernamePasswordOrg(t *testing.T) {
 	// TODO: try to use secure connection
 	rhsmClient.RHSMConf.Server.Insecure = true
 
-	consumer, err := rhsmClient.RegisterUsernamePasswordOrg(&username, &password, &org, nil, nil)
+	consumer, err := rhsmClient.RegisterUsernamePassword(&username, &password, &options, nil)
 	if err != nil {
 		t.Fatalf("registration failed: %s", err)
 	}
@@ -359,7 +457,7 @@ func TestRegisterUsernamePasswordOrgEnvironments(t *testing.T) {
 	username := "admin"
 	password := "admin"
 	org := "donaldduck"
-	options := map[string]string{"environments": "env-id-1,env-id-2", "foo": "bar"}
+	options := map[string]string{"environments": "env-id-1,env-id-2", "org": org, "foo": "bar"}
 
 	server := httptest.NewTLSServer(
 		// It is expected that Register() method will call only
@@ -423,7 +521,7 @@ func TestRegisterUsernamePasswordOrgEnvironments(t *testing.T) {
 	// TODO: try to use secure connection
 	rhsmClient.RHSMConf.Server.Insecure = true
 
-	consumer, err := rhsmClient.RegisterUsernamePasswordOrg(&username, &password, &org, &options, nil)
+	consumer, err := rhsmClient.RegisterUsernamePassword(&username, &password, &options, nil)
 	if err != nil {
 		t.Fatalf("registration failed: %s", err)
 	}
@@ -461,6 +559,8 @@ func TestFailedRegisterUsernamePasswordOrg(t *testing.T) {
 	username := "admin"
 	password := "wrong password"
 	org := "donaldduck"
+	var options = make(map[string]string)
+	options["org"] = org
 
 	server := httptest.NewTLSServer(
 		// It is expected that Register() method will call only
@@ -505,7 +605,7 @@ func TestFailedRegisterUsernamePasswordOrg(t *testing.T) {
 	// TODO: try to use secure connection
 	rhsmClient.RHSMConf.Server.Insecure = true
 
-	consumer, err := rhsmClient.RegisterUsernamePasswordOrg(&username, &password, &org, nil, nil)
+	consumer, err := rhsmClient.RegisterUsernamePassword(&username, &password, &options, nil)
 	if err == nil {
 		t.Fatalf("registration not failed, when wrong password provided")
 	}
@@ -530,6 +630,8 @@ func TestRegisterUsernamePasswordOrgNoSyspurpose(t *testing.T) {
 	username := "admin"
 	password := "admin"
 	org := "donaldduck"
+	var options = make(map[string]string)
+	options["org"] = org
 
 	server := httptest.NewTLSServer(
 		// It is expected that Register() method will call only
@@ -584,7 +686,7 @@ func TestRegisterUsernamePasswordOrgNoSyspurpose(t *testing.T) {
 	// TODO: try to use secure connection
 	rhsmClient.RHSMConf.Server.Insecure = true
 
-	consumer, err := rhsmClient.RegisterUsernamePasswordOrg(&username, &password, &org, nil, nil)
+	consumer, err := rhsmClient.RegisterUsernamePassword(&username, &password, &options, nil)
 	if err != nil {
 		t.Fatalf("registration failed: %s", err)
 	}
@@ -805,7 +907,7 @@ func TestRegisterActivationKeyOrg(t *testing.T) {
 	rhsmClient.RHSMConf.Server.Insecure = true
 
 	activationKeys := []string{activationKey}
-	consumer, err := rhsmClient.RegisterOrgActivationKeys(&orgId, activationKeys, nil)
+	consumer, err := rhsmClient.RegisterOrgActivationKeys(&orgId, activationKeys, nil, nil)
 	if err != nil {
 		t.Fatalf("registration failed: %s", err)
 	}
@@ -905,7 +1007,7 @@ func TestRegisterActivationKeyOrgContentOverride(t *testing.T) {
 	rhsmClient.RHSMConf.Server.Insecure = true
 
 	activationKeys := []string{activationKey}
-	consumer, err := rhsmClient.RegisterOrgActivationKeys(&orgId, activationKeys, nil)
+	consumer, err := rhsmClient.RegisterOrgActivationKeys(&orgId, activationKeys, nil, nil)
 	if err != nil {
 		t.Fatalf("registration failed: %s", err)
 	}
@@ -1124,7 +1226,7 @@ func TestRegisterTwoActivationsKeyOrg(t *testing.T) {
 	// TODO: try to use secure connection
 	rhsmClient.RHSMConf.Server.Insecure = true
 
-	consumer, err := rhsmClient.RegisterOrgActivationKeys(&orgId, activationKeys[:], nil)
+	consumer, err := rhsmClient.RegisterOrgActivationKeys(&orgId, activationKeys[:], nil, nil)
 	if err != nil {
 		t.Fatalf("registration failed: %s", err)
 	}
