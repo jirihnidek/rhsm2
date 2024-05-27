@@ -7,7 +7,7 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/henvic/httpretty v0.1.3
 	github.com/jeandeaual/go-locale v0.0.0-20240223122105-ce5225dcaa49
-	github.com/rs/zerolog v1.32.0
+	github.com/rs/zerolog v1.33.0
 	gopkg.in/ini.v1 v1.67.0
 )
 
