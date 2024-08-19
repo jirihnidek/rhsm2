@@ -3,7 +3,7 @@ module github.com/jirihnidek/rhsm2
 go 1.19
 
 require (
-	github.com/creasty/defaults v1.7.0
+	github.com/creasty/defaults v1.8.0
 	github.com/google/uuid v1.6.0
 	github.com/henvic/httpretty v0.1.3
 	github.com/jeandeaual/go-locale v0.0.0-20240223122105-ce5225dcaa49
