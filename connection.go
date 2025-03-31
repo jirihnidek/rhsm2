@@ -120,7 +120,7 @@ func (connection *RHSMConnection) request(
 
 	req, err := http.NewRequest(method, requestUrl, buffer)
 	if err != nil {
-		return nil, fmt.Errorf("unable to create http request %s: %s\n", method, err)
+		return nil, fmt.Errorf("unable to create http request %s: %s", method, err)
 	}
 
 	// When connection without cert/key auth is used, then it is possible to
@@ -185,7 +185,7 @@ func (connection *RHSMConnection) request(
 
 	res, err := connection.Client.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("error making http request %s: %s\n", method, err)
+		return nil, fmt.Errorf("error making http request %s: %s", method, err)
 	}
 
 	return res, nil
@@ -362,7 +362,7 @@ func (rhsmClient *RHSMClient) createCertAuthConnection(
 func getResponseBody(response *http.Response) (*string, error) {
 	resBody, err := io.ReadAll(response.Body)
 	if err != nil {
-		return nil, fmt.Errorf("error: reading response body: %s\n", err)
+		return nil, fmt.Errorf("error: reading response body: %s", err)
 	}
 
 	retBody := string(resBody[:])
