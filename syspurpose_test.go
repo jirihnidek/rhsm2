@@ -57,7 +57,12 @@ func TestCorruptedSystemPurposeFile(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unable to create temporary %s file for testing", corruptedSyspurposeFilePath)
 	}
-	defer syspurposeFile.Close()
+	defer func() {
+		err = syspurposeFile.Close()
+		if err != nil {
+			t.Fatalf("unable to close %s file for testing", corruptedSyspurposeFilePath)
+		}
+	}()
 	corruptedContent := "[{]}foo:bar/%&@#"
 	_, err = syspurposeFile.Write([]byte(corruptedContent))
 	if err != nil {

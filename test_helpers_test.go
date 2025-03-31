@@ -41,7 +41,11 @@ func isDirEmpty(name *string) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	defer f.Close()
+	defer func() {
+		// The error of closing could be ignored in this case,
+		// because we only read content of directory
+		_ = f.Close()
+	}()
 
 	_, err = f.Readdir(1)
 	if err == io.EOF {
