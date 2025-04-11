@@ -69,10 +69,10 @@ func (rhsmClient *RHSMClient) writeRepoFile(
 	for serial, products := range productsMap {
 		for _, product := range products {
 			for _, content := range product.Content {
-				// Identifier of the section. Something like [rhel-9-for-x86_64-baseos-rpms]
-				section, err := file.NewSection(content.Id)
+				// Label of the section. Something like [rhel-9-for-x86_64-baseos-rpms]
+				section, err := file.NewSection(content.Label)
 				if err != nil {
-					return fmt.Errorf("unable to add section: %s: %s", content.Id, err)
+					return fmt.Errorf("unable to add section: %s: %s", content.Label, err)
 				}
 
 				// name
