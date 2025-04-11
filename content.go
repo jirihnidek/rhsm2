@@ -69,9 +69,10 @@ func (rhsmClient *RHSMClient) writeRepoFile(
 	for serial, products := range productsMap {
 		for _, product := range products {
 			for _, content := range product.Content {
-				section, err := file.NewSection(content.Name)
+				// Identifier of the section. Something like [rhel-9-for-x86_64-baseos-rpms]
+				section, err := file.NewSection(content.Id)
 				if err != nil {
-					return fmt.Errorf("unable to add section: %s: %s", content.Name, err)
+					return fmt.Errorf("unable to add section: %s: %s", content.Id, err)
 				}
 
 				// name
@@ -121,6 +122,9 @@ func (rhsmClient *RHSMClient) writeRepoFile(
 					}
 					_, _ = section.NewKey("arches", arches)
 				}
+
+				// sslverifystatus
+				_, _ = section.NewKey("sslverifystatus", "1")
 
 				// Apply content overrides
 				if override, exists := contentOverrides[content.Name]; exists {
