@@ -92,12 +92,16 @@ func createRHSMClient(confFilePath *string) (*RHSMClient, error) {
 	return rhsmClient, nil
 }
 
+// consumerPEMFile returns a full path to a PEM file in the consumer certificate directory
+// fileName: name of the PEM file to locate
 func (rhsmClient *RHSMClient) consumerPEMFile(fileName string) *string {
 	consumerCerDir := rhsmClient.RHSMConf.RHSM.ConsumerCertDir
 	consumerCertPath := filepath.Join(consumerCerDir, fileName)
 	return &consumerCertPath
 }
 
+// entitlementPEMFile returns a full path to a PEM file in the entitlement certificate directory
+// fileName: name of the PEM file to locate
 func (rhsmClient *RHSMClient) entitlementPEMFile(fileName string) *string {
 	entCerDir := rhsmClient.RHSMConf.RHSM.EntitlementCertDir
 	entCertPath := filepath.Join(entCerDir, fileName)
