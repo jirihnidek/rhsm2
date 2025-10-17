@@ -6,8 +6,6 @@ import (
 	"encoding/json"
 	"encoding/pem"
 	"fmt"
-	"github.com/rs/zerolog/log"
-	"gopkg.in/ini.v1"
 	"io"
 	"net/url"
 	"os"
@@ -15,9 +13,28 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/rs/zerolog/log"
+	"gopkg.in/ini.v1"
 )
 
 const DefaultRepoFilePath = "/etc/yum.repos.d/redhat.repo"
+
+// Content is a structure containing information about one content.
+// This structure is unmarshalled from the entitlement certificate
+type Content struct {
+	Id             string   `json:"id"`
+	Type           string   `json:"type"`
+	Name           string   `json:"name" ini:"name"`
+	Label          string   `json:"label"`
+	Vendor         string   `json:"vendor"`
+	Path           string   `json:"path"`
+	Enabled        *bool    `json:"enabled"` // nil means that enabled was not set in JSON
+	Arches         []string `json:"arches"`
+	GpgUrl         string   `json:"gpg_url,omitempty"`
+	MetadataExpire int      `json:"metadata_expire,omitempty" ini:"metadata_expire,omitempty"`
+	RequiredTags   []string `json:"required_tags,omitempty"`
+}
 
 // EngineeringProduct is structure containing information about one engineering product.
 // This structure is unmarshalled from entitlement certificate
@@ -26,19 +43,7 @@ type EngineeringProduct struct {
 	Name          string        `json:"name"`
 	Version       string        `json:"version"`
 	Architectures []interface{} `json:"architectures"`
-	Content       []struct {
-		Id             string   `json:"id"`
-		Type           string   `json:"type"`
-		Name           string   `json:"name" ini:"name"`
-		Label          string   `json:"label"`
-		Vendor         string   `json:"vendor"`
-		Path           string   `json:"path"`
-		Enabled        bool     `json:"enabled,omitempty"`
-		Arches         []string `json:"arches"`
-		GpgUrl         string   `json:"gpg_url,omitempty"`
-		MetadataExpire int      `json:"metadata_expire,omitempty" ini:"metadata_expire,omitempty"`
-		RequiredTags   []string `json:"required_tags,omitempty"`
-	} `json:"content"`
+	Content       []Content     `json:"content"`
 }
 
 // EntitlementContentJSON is structure containing information about content (decoded from entitlement certificate)
@@ -87,11 +92,15 @@ func (rhsmClient *RHSMClient) writeRepoFile(
 
 				// enabled
 				var enabled string
-				if content.Enabled {
+
+				// When content.Enabled is nil, it means that the content is enabled by default.
+				// We use this approach, because JSON unmarshaler does not support default values.
+				if content.Enabled == nil || *content.Enabled {
 					enabled = "1"
 				} else {
 					enabled = "0"
 				}
+
 				_, _ = section.NewKey("enabled", enabled)
 				_, _ = section.NewKey("enabled_metadata", enabled)
 
@@ -148,15 +157,12 @@ func (rhsmClient *RHSMClient) writeRepoFile(
 	return nil
 }
 
-// generateRepoFileFromInstalledEntitlementCerts tries to generate redhat.repo file
-// from installed entitlement certificate(s) and content overrides
-func (rhsmClient *RHSMClient) generateRepoFileFromInstalledEntitlementCerts(
-	contentOverrides map[string]map[string]string,
-) error {
+// getEngineeringProducts tries to get a list of engineering products from entitlement certificates
+func (rhsmClient *RHSMClient) getEngineeringProducts() (map[int64][]EngineeringProduct, error) {
 	entCertDirPath := rhsmClient.RHSMConf.RHSM.EntitlementCertDir
 	entCertsFilePaths, err := os.ReadDir(entCertDirPath)
 	if err != nil {
-		return fmt.Errorf("unable to read content of %s: %s", entCertDirPath, err)
+		return nil, fmt.Errorf("unable to read content of %s: %s", entCertDirPath, err)
 	}
 
 	var engineeringProductsMap = make(map[int64][]EngineeringProduct)
@@ -164,11 +170,13 @@ func (rhsmClient *RHSMClient) generateRepoFileFromInstalledEntitlementCerts(
 	for _, file := range entCertsFilePaths {
 		fileName := file.Name()
 		filePath := filepath.Join(entCertDirPath, fileName)
-		// Skip the file if it is key file
+
+		// Skip the file if it is a key file
 		if strings.HasSuffix(filePath, "-key.pem") {
 			continue
 		}
-		// Other pem file should be entitlement cert file
+
+		// Other pem files should be entitlement cert file
 		if strings.HasSuffix(filePath, ".pem") {
 			engineeringProduct, err := getContentFromEntCertFile(&filePath)
 			if err != nil {
@@ -178,9 +186,23 @@ func (rhsmClient *RHSMClient) generateRepoFileFromInstalledEntitlementCerts(
 			serialNumber, err := strconv.ParseInt(serialNumberStr, 10, 64)
 			if err != nil {
 				log.Debug().Msgf("unable to convert %s to int: %s", fileName, err)
+				continue
 			}
 			engineeringProductsMap[serialNumber] = engineeringProduct
 		}
+	}
+
+	return engineeringProductsMap, nil
+}
+
+// generateRepoFileFromInstalledEntitlementCerts tries to generate redhat.repo file
+// from installed entitlement certificate(s) and content overrides
+func (rhsmClient *RHSMClient) generateRepoFileFromInstalledEntitlementCerts(
+	contentOverrides map[string]map[string]string,
+) error {
+	engineeringProductsMap, err := rhsmClient.getEngineeringProducts()
+	if err != nil {
+		return err
 	}
 
 	return rhsmClient.writeRepoFile(engineeringProductsMap, contentOverrides)

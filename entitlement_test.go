@@ -8,6 +8,161 @@ import (
 	"testing"
 )
 
+// TestGetInstalledEntitlementCertificateKeys_Success tests successful reading of valid entitlement certificates and keys
+func TestGetInstalledEntitlementCertificateKeys_Success(t *testing.T) {
+	t.Parallel()
+	tempDirFilePath := t.TempDir()
+	testingFiles, err := setupTestingFileSystem(tempDirFilePath, false, true, false, true, true)
+	if err != nil {
+		t.Fatalf("unable to setup testing environment: %s", err)
+	}
+
+	rhsmClient, err := setupTestingRHSMClient(testingFiles, nil, nil)
+	if err != nil {
+		t.Fatalf("unable to setup testing rhsm client: %s", err)
+	}
+
+	// Write test certificate and key files
+	certPath := filepath.Join(testingFiles.EntitlementDirPath, "2150990815908364188.pem")
+	keyPath := filepath.Join(testingFiles.EntitlementDirPath, "2150990815908364188-key.pem")
+
+	err = os.WriteFile(certPath, []byte(entCertKeyList), 0644)
+	if err != nil {
+		t.Fatalf("failed to write test certificate: %v", err)
+	}
+	err = os.WriteFile(keyPath, []byte("-----BEGIN PRIVATE KEY-----\ntest\n-----END PRIVATE KEY-----\n"), 0644)
+	if err != nil {
+		t.Fatalf("failed to write test key: %v", err)
+	}
+
+	certs, err := rhsmClient.getInstalledEntitlementCertificateKeys()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if len(certs) != 1 {
+		t.Errorf("expected 1 certificate, got %d", len(certs))
+	}
+}
+
+// TestGetInstalledEntitlementCertificateKeys_EmptyDir tests behavior when entitlement directory is empty
+func TestGetInstalledEntitlementCertificateKeys_EmptyDir(t *testing.T) {
+	t.Parallel()
+	tempDirFilePath := t.TempDir()
+	testingFiles, err := setupTestingFileSystem(tempDirFilePath, false, true, false, false, true)
+	if err != nil {
+		t.Fatalf("unable to setup testing environment: %s", err)
+	}
+
+	rhsmClient, err := setupTestingRHSMClient(testingFiles, nil, nil)
+	if err != nil {
+		t.Fatalf("unable to setup testing rhsm client: %s", err)
+	}
+
+	certs, err := rhsmClient.getInstalledEntitlementCertificateKeys()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if len(certs) != 0 {
+		t.Errorf("expected 0 certificates in empty dir, got %d", len(certs))
+	}
+}
+
+// TestGetInstalledEntitlementCertificateKeys_InvalidCert tests handling of invalid certificate format
+func TestGetInstalledEntitlementCertificateKeys_InvalidCert(t *testing.T) {
+	t.Parallel()
+	tempDirFilePath := t.TempDir()
+	testingFiles, err := setupTestingFileSystem(tempDirFilePath, false, true, false, false, true)
+	if err != nil {
+		t.Fatalf("unable to setup testing environment: %s", err)
+	}
+
+	rhsmClient, err := setupTestingRHSMClient(testingFiles, nil, nil)
+	if err != nil {
+		t.Fatalf("unable to setup testing rhsm client: %s", err)
+	}
+
+	// Write invalid certificate
+	certPath := filepath.Join(testingFiles.EntitlementDirPath, "invalid.pem")
+	err = os.WriteFile(certPath, []byte("invalid certificate content"), 0644)
+	if err != nil {
+		t.Fatalf("failed to write test certificate: %v", err)
+	}
+
+	certs, err := rhsmClient.getInstalledEntitlementCertificateKeys()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if len(certs) != 0 {
+		t.Errorf("expected 0 valid certificates, got %d", len(certs))
+	}
+}
+
+// TestGetInstalledEntitlementCertificateKeys_MissingKey tests handling of missing key file
+func TestGetInstalledEntitlementCertificateKeys_MissingKey(t *testing.T) {
+	t.Parallel()
+	tempDirFilePath := t.TempDir()
+	testingFiles, err := setupTestingFileSystem(tempDirFilePath, false, true, false, false, true)
+	if err != nil {
+		t.Fatalf("unable to setup testing environment: %s", err)
+	}
+
+	rhsmClient, err := setupTestingRHSMClient(testingFiles, nil, nil)
+	if err != nil {
+		t.Fatalf("unable to setup testing rhsm client: %s", err)
+	}
+
+	// Write the certificate without a corresponding key
+	certPath := filepath.Join(testingFiles.EntitlementDirPath, "2150990815908364188.pem")
+	err = os.WriteFile(certPath, []byte(entCertKeyList), 0644)
+	if err != nil {
+		t.Fatalf("failed to write test certificate: %v", err)
+	}
+
+	certs, err := rhsmClient.getInstalledEntitlementCertificateKeys()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if len(certs) != 0 {
+		t.Errorf("expected 0 complete cert/key pairs, got %d", len(certs))
+	}
+}
+
+// TestGetInstalledEntitlementCertificateKeys_NoAccess tests handling of directory access errors
+func TestGetInstalledEntitlementCertificateKeys_NoAccess(t *testing.T) {
+	t.Parallel()
+	tempDirFilePath := t.TempDir()
+	testingFiles, err := setupTestingFileSystem(tempDirFilePath, false, true, false, false, true)
+	if err != nil {
+		t.Fatalf("unable to setup testing environment: %s", err)
+	}
+
+	rhsmClient, err := setupTestingRHSMClient(testingFiles, nil, nil)
+	if err != nil {
+		t.Fatalf("unable to setup testing rhsm client: %s", err)
+	}
+
+	// Remove read permissions from the directory
+	err = os.Chmod(testingFiles.EntitlementDirPath, 0000)
+	if err != nil {
+		t.Fatalf("failed to change directory permissions: %v", err)
+	}
+	defer func(name string, mode os.FileMode) {
+		err := os.Chmod(name, mode)
+		if err != nil {
+			t.Logf("failed to change directory permissions: %v", err)
+		}
+	}(testingFiles.EntitlementDirPath, 0755)
+
+	_, err = rhsmClient.getInstalledEntitlementCertificateKeys()
+	if err == nil {
+		t.Error("expected error when reading from inaccessible directory")
+	}
+}
+
 const entCertKeyList = `
 [ {
   "created" : "2023-10-04T07:42:10+0000",
@@ -72,7 +227,7 @@ func TestGetEntitlementCertificate(t *testing.T) {
 		t.Fatalf("unable to setup testing environment: %s", err)
 	}
 
-	rhsmClient, err := setupTestingRHSMClient(testingFiles, server)
+	rhsmClient, err := setupTestingRHSMClient(testingFiles, server, nil)
 	if err != nil {
 		t.Fatalf("unable to setup testing rhsm client: %s", err)
 	}
@@ -164,7 +319,7 @@ func TestGetEntitlementCertificateWrongConsumerUUID(t *testing.T) {
 		t.Fatalf("unable to setup testing environment: %s", err)
 	}
 
-	rhsmClient, err := setupTestingRHSMClient(testingFiles, server)
+	rhsmClient, err := setupTestingRHSMClient(testingFiles, server, nil)
 	if err != nil {
 		t.Fatalf("unable to setup testing rhsm client: %s", err)
 	}
@@ -221,7 +376,7 @@ func TestGetEntitlementCertificateDeletedConsumerUUID(t *testing.T) {
 		t.Fatalf("unable to setup testing environment: %s", err)
 	}
 
-	rhsmClient, err := setupTestingRHSMClient(testingFiles, server)
+	rhsmClient, err := setupTestingRHSMClient(testingFiles, server, nil)
 	if err != nil {
 		t.Fatalf("unable to setup testing rhsm client: %s", err)
 	}
@@ -278,7 +433,7 @@ func TestGetEntitlementCertificateInternalServerError(t *testing.T) {
 		t.Fatalf("unable to setup testing environment: %s", err)
 	}
 
-	rhsmClient, err := setupTestingRHSMClient(testingFiles, server)
+	rhsmClient, err := setupTestingRHSMClient(testingFiles, server, nil)
 	if err != nil {
 		t.Fatalf("unable to setup testing rhsm client: %s", err)
 	}

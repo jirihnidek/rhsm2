@@ -28,7 +28,7 @@ func TestGetConsumerUUID(t *testing.T) {
 		t.Fatalf("unable to setup testing environment: %s", err)
 	}
 
-	rhsmClient, err := setupTestingRHSMClient(testingFiles, server)
+	rhsmClient, err := setupTestingRHSMClient(testingFiles, server, nil)
 	if err != nil {
 		t.Fatalf("unable to setup testing rhsm client: %s", err)
 	}
@@ -65,7 +65,7 @@ func TestGetOwner(t *testing.T) {
 		t.Fatalf("unable to setup testing environment: %s", err)
 	}
 
-	rhsmClient, err := setupTestingRHSMClient(testingFiles, server)
+	rhsmClient, err := setupTestingRHSMClient(testingFiles, server, nil)
 	if err != nil {
 		t.Fatalf("unable to setup testing rhsm client: %s", err)
 	}

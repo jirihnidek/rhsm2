@@ -1,10 +1,14 @@
 package rhsm2
 
 import (
+	"net/url"
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"sync"
+
+	"github.com/rs/zerolog/log"
 )
 
 // RHSMClient contains information about client. It can hold up to 3 different
@@ -70,21 +74,66 @@ func createRHSMClient(confFilePath *string) (*RHSMClient, error) {
 		return nil, err
 	}
 
-	// When consumer key and certificate exist, then it is possible
-	// to create connection using consumer cert/key for authentication
-	certFilePath := filepath.Join(rhsmConf.RHSM.ConsumerCertDir, "cert.pem")
-	if _, err := os.Stat(certFilePath); err == nil {
-		keyFilePath := filepath.Join(rhsmConf.RHSM.ConsumerCertDir, "key.pem")
-		if _, err := os.Stat(keyFilePath); err == nil {
+	// When the consumer key and the certificate exist, then it is possible
+	// to create a connection using consumer cert/key for authentication
+	consumerCertFilePath := filepath.Join(rhsmConf.RHSM.ConsumerCertDir, "cert.pem")
+	if _, err := os.Stat(consumerCertFilePath); err == nil {
+		consumerKeyFilePath := filepath.Join(rhsmConf.RHSM.ConsumerCertDir, "key.pem")
+		if _, err := os.Stat(consumerKeyFilePath); err == nil {
 			err = rhsmClient.createCertAuthConnection(
 				&rhsmConf.Server.Hostname,
 				&rhsmConf.Server.Port,
 				&rhsmConf.Server.Prefix,
-				&certFilePath,
-				&keyFilePath,
+				&consumerCertFilePath,
+				&consumerKeyFilePath,
 			)
 			if err != nil {
 				return nil, err
+			}
+		}
+	}
+
+	// When the entitlement key and the certificate exist, then it is possible
+	// to create a connection using entitlement cert/key for authentication to CDN
+	certKeys, err := rhsmClient.getInstalledEntitlementCertificateKeys()
+	if err != nil {
+		return nil, err
+	}
+	
+	for _, certKey := range certKeys {
+		if certKey.CertPath == nil {
+			log.Debug().Msgf("cert path is nil")
+			continue
+		}
+		if certKey.KeyPath == nil {
+			log.Debug().Msgf("key path is nil")
+			continue
+		}
+		if _, err := os.Stat(*certKey.KeyPath); err == nil {
+			if _, err := os.Stat(*certKey.CertPath); err == nil {
+				cdnURL, err := url.Parse(rhsmConf.RHSM.BaseURL)
+				if err != nil {
+					return nil, err
+				}
+				log.Debug().Msgf("cdnURL: %s, host: %s, port %s", cdnURL, cdnURL.Host, cdnURL.Port())
+				cdnPort := cdnURL.Port()
+				cdnHost := cdnURL.Host
+				if cdnPort == "" {
+					cdnPort = "443"
+				} else {
+					// Split host and port
+					cdnHost = strings.Split(cdnURL.Host, ":")[0]
+				}
+				err = rhsmClient.createEntitlementCertAuthConnection(
+					&cdnHost,
+					&cdnPort,
+					&cdnURL.Path,
+					certKey.CertPath,
+					certKey.KeyPath,
+				)
+				if err != nil {
+					return nil, err
+				}
 			}
 		}
 	}

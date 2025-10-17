@@ -2,10 +2,11 @@ package rhsm2
 
 import (
 	"fmt"
-	"github.com/google/uuid"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"github.com/google/uuid"
 )
 
 // TestCreateXCorrelationID test the createCorrelationId()
@@ -103,7 +104,7 @@ func TestGetServerStatusClientInfo(t *testing.T) {
 		t.Fatalf("unable to setup testing environment: %s", err)
 	}
 
-	rhsmClient, err := setupTestingRHSMClient(testingFiles, server)
+	rhsmClient, err := setupTestingRHSMClient(testingFiles, server, nil)
 	if err != nil {
 		t.Fatalf("unable to setup testing rhsm client: %s", err)
 	}
@@ -170,7 +171,7 @@ func TestCreateHTTPsClientProxyFromConf(t *testing.T) {
 		t.Fatalf("unable to setup testing environment: %s", err)
 	}
 
-	rhsmClient, err := setupTestingRHSMClient(testingFiles, server)
+	rhsmClient, err := setupTestingRHSMClient(testingFiles, server, nil)
 	if err != nil {
 		t.Fatalf("unable to setup testing rhsm client: %s", err)
 	}

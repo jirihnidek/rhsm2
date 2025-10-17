@@ -152,7 +152,7 @@ func TestUnregisterRegisteredSystem(t *testing.T) {
 		t.Fatalf("unable to setup testing environment: %s", err)
 	}
 
-	rhsmClient, err := setupTestingRHSMClient(testingFiles, server)
+	rhsmClient, err := setupTestingRHSMClient(testingFiles, server, nil)
 	if err != nil {
 		t.Fatalf("unable to setup testing rhsm client: %s", err)
 	}
@@ -192,7 +192,7 @@ func TestClenRegisteredSystem(t *testing.T) {
 		t.Fatalf("unable to setup testing environment: %s", err)
 	}
 
-	rhsmClient, err := setupTestingRHSMClient(testingFiles, server)
+	rhsmClient, err := setupTestingRHSMClient(testingFiles, server, nil)
 	if err != nil {
 		t.Fatalf("unable to setup testing rhsm client: %s", err)
 	}
@@ -260,7 +260,7 @@ func TestUnregisterRegisteredSystemReadOnlyFileSystem(t *testing.T) {
 		t.Fatalf("unable to setup testing environment: %s", err)
 	}
 
-	rhsmClient, err := setupTestingRHSMClient(testingFiles, server)
+	rhsmClient, err := setupTestingRHSMClient(testingFiles, server, nil)
 	if err != nil {
 		t.Fatalf("unable to setup testing rhsm client: %s", err)
 	}
@@ -315,7 +315,7 @@ func TestUnregisterUnRegisteredSystem(t *testing.T) {
 		t.Fatalf("unable to setup testing environment: %s", err)
 	}
 
-	rhsmClient, err := setupTestingRHSMClient(testingFiles, server)
+	rhsmClient, err := setupTestingRHSMClient(testingFiles, server, nil)
 	if err != nil {
 		t.Fatalf("unable to setup testing rhsm client: %s", err)
 	}
@@ -376,7 +376,7 @@ func TestUnregisterDeletedConsumer(t *testing.T) {
 		t.Fatalf("unable to setup testing environment: %s", err)
 	}
 
-	rhsmClient, err := setupTestingRHSMClient(testingFiles, server)
+	rhsmClient, err := setupTestingRHSMClient(testingFiles, server, nil)
 	if err != nil {
 		t.Fatalf("unable to setup testing rhsm client: %s", err)
 	}
@@ -438,7 +438,7 @@ func TestUnregisterWrongConsumer(t *testing.T) {
 		t.Fatalf("unable to setup testing environment: %s", err)
 	}
 
-	rhsmClient, err := setupTestingRHSMClient(testingFiles, server)
+	rhsmClient, err := setupTestingRHSMClient(testingFiles, server, nil)
 	if err != nil {
 		t.Fatalf("unable to setup testing rhsm client: %s", err)
 	}
@@ -501,7 +501,7 @@ func TestUnregisterInternalServerError(t *testing.T) {
 		t.Fatalf("unable to setup testing environment: %s", err)
 	}
 
-	rhsmClient, err := setupTestingRHSMClient(testingFiles, server)
+	rhsmClient, err := setupTestingRHSMClient(testingFiles, server, nil)
 	if err != nil {
 		t.Fatalf("unable to setup testing rhsm client: %s", err)
 	}
