@@ -5,17 +5,18 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
-	"github.com/google/uuid"
-	"github.com/henvic/httpretty"
-	"github.com/jeandeaual/go-locale"
-	"github.com/jirihnidek/rhsm2/constants"
-	"github.com/rs/zerolog/log"
 	"io"
 	"net"
 	"net/http"
 	"net/url"
 	"os"
 	"path/filepath"
+
+	"github.com/google/uuid"
+	"github.com/henvic/httpretty"
+	"github.com/jeandeaual/go-locale"
+	"github.com/jirihnidek/rhsm2/constants"
+	"github.com/rs/zerolog/log"
 )
 
 // AuthType is type used for specifying authentication type of connection
@@ -349,6 +350,33 @@ func (rhsmClient *RHSMClient) createCertAuthConnection(
 
 	rhsmClient.ConsumerCertAuthConnection = &RHSMConnection{
 		AuthType:       ConsumerCertAuth,
+		Client:         client,
+		ServerHostname: hostname,
+		ServerPort:     port,
+		ServerPrefix:   prefix,
+	}
+
+	return nil
+}
+
+// createEntitlementCertAuthConnection tries to create a connection using entitlement cert/key
+// for authentication. It is typically used when we want to communicate with CDN.
+// E.g. when we want to get information about release.
+func (rhsmClient *RHSMClient) createEntitlementCertAuthConnection(
+	hostname *string,
+	port *string,
+	prefix *string,
+	certFilePath *string,
+	keyFilePath *string,
+) error {
+	client, err := rhsmClient.createHTTPsClient(certFilePath, keyFilePath)
+
+	if err != nil {
+		return fmt.Errorf("unable to create entitlement cert auth connection: %v", err)
+	}
+
+	rhsmClient.EntitlementCertAuthConnection = &RHSMConnection{
+		AuthType:       EntitlementCertAuth,
 		Client:         client,
 		ServerHostname: hostname,
 		ServerPort:     port,

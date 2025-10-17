@@ -13,6 +13,8 @@ import (
 // Here is set of JSON documents returned by candlepin server in body of response,
 // when something unusual happens
 
+const testEntCertSerialNumber = "4709416649487329566"
+
 const response403 = `{
   "displayMessage": "Consumer could not be deleted due to insufficient permissions.",
   "requestUuid": "c4347004-8792-41fe-a4d8-fccaa0d3898a"
@@ -137,16 +139,16 @@ func setupTestingFiles(
 
 	if entCertsInstalled {
 		// Copy entitlement key to temporary directory
-		srcEntitlementKeyFilePath := "./testdata/etc/pki/entitlement/6490061114713729830-key.pem"
-		dstEntitlementKeyFilePath := filepath.Join(testingFileSystem.EntitlementDirPath, "6490061114713729830-key.pem")
+		srcEntitlementKeyFilePath := "./testdata/etc/pki/entitlement/" + testEntCertSerialNumber + "-key.pem"
+		dstEntitlementKeyFilePath := filepath.Join(testingFileSystem.EntitlementDirPath, testEntCertSerialNumber+"-key.pem")
 		err := copyFile(&srcEntitlementKeyFilePath, &dstEntitlementKeyFilePath, perm)
 		if err != nil {
 			return fmt.Errorf(
 				"unable to create testing entitlement key file: %s", err)
 		}
 		// Copy entitlement cert to temporary directory
-		srcEntitlementCertFilePath := "./testdata/etc/pki/entitlement/6490061114713729830.pem"
-		dstEntitlementCertFilePath := filepath.Join(testingFileSystem.EntitlementDirPath, "6490061114713729830.pem")
+		srcEntitlementCertFilePath := "./testdata/etc/pki/entitlement/" + testEntCertSerialNumber + ".pem"
+		dstEntitlementCertFilePath := filepath.Join(testingFileSystem.EntitlementDirPath, testEntCertSerialNumber+".pem")
 		err = copyFile(&srcEntitlementCertFilePath, &dstEntitlementCertFilePath, perm)
 		if err != nil {
 			return fmt.Errorf("unable to create testing entitlement cert file: %s", err)
@@ -342,18 +344,8 @@ func setupTestingFileSystemReadOnly(
 	return testingFileSystem, nil
 }
 
-// setupTestingRHSMClient tries to set up testing instance of RHSMClient
-func setupTestingRHSMClient(testingFiles *TestingFileSystem, server *httptest.Server) (*RHSMClient, error) {
-	// Get the hostname, port and prefix from the fake server
-	// It will be used for configuring rhsm client
-	parsedURL, err := url.Parse(server.URL)
-	if err != nil {
-		return nil, fmt.Errorf("unable to parse server URL: %s: %s", server.URL, err)
-	}
-	hostname := parsedURL.Hostname()
-	port := parsedURL.Port()
-	prefix := parsedURL.Path
-
+// setupTestingRHSMClient tries to set up the testing instance of RHSMClient
+func setupTestingRHSMClient(testingFiles *TestingFileSystem, server *httptest.Server, cdn *httptest.Server) (*RHSMClient, error) {
 	// Create instance of RHSM client
 	rhsmClient := RHSMClient{}
 
@@ -361,11 +353,6 @@ func setupTestingRHSMClient(testingFiles *TestingFileSystem, server *httptest.Se
 	rhsmClient.RHSMConf = &RHSMConf{
 		yumRepoFilePath:    testingFiles.YumRepoFilePath,
 		syspurposeFilePath: testingFiles.SyspurposeFilePath,
-		Server: RHSMConfServer{
-			Hostname: hostname,
-			Port:     port,
-			Prefix:   prefix,
-		},
 		RHSM: RHSMConfRHSM{
 			ConsumerCertDir:       testingFiles.ConsumerDirPath,
 			EntitlementCertDir:    testingFiles.EntitlementDirPath,
@@ -375,20 +362,59 @@ func setupTestingRHSMClient(testingFiles *TestingFileSystem, server *httptest.Se
 		},
 	}
 
-	// Mock connections to server with mock server
-	rhsmClient.NoAuthConnection = &RHSMConnection{
-		AuthType:       NoAuth,
-		Client:         server.Client(),
-		ServerHostname: &hostname,
-		ServerPort:     &port,
-		ServerPrefix:   &prefix,
+	if server != nil {
+		// Get the hostname, port and prefix from the fake server
+		// It will be used for configuring rhsm client
+		parsedURL, err := url.Parse(server.URL)
+		if err != nil {
+			return nil, fmt.Errorf("unable to parse server URL: %s: %s", server.URL, err)
+		}
+		hostname := parsedURL.Hostname()
+		port := parsedURL.Port()
+		prefix := parsedURL.Path
+
+		rhsmClient.RHSMConf.Server.Hostname = hostname
+		rhsmClient.RHSMConf.Server.Port = port
+		rhsmClient.RHSMConf.Server.Prefix = prefix
+
+		// Mock connections to server with mock server
+		rhsmClient.NoAuthConnection = &RHSMConnection{
+			AuthType:       NoAuth,
+			Client:         server.Client(),
+			ServerHostname: &hostname,
+			ServerPort:     &port,
+			ServerPrefix:   &prefix,
+		}
+		rhsmClient.ConsumerCertAuthConnection = &RHSMConnection{
+			AuthType:       ConsumerCertAuth,
+			Client:         server.Client(),
+			ServerHostname: &hostname,
+			ServerPort:     &port,
+			ServerPrefix:   &prefix,
+		}
+
 	}
-	rhsmClient.ConsumerCertAuthConnection = &RHSMConnection{
-		AuthType:       ConsumerCertAuth,
-		Client:         server.Client(),
-		ServerHostname: &hostname,
-		ServerPort:     &port,
-		ServerPrefix:   &prefix,
+	if cdn != nil {
+		// Get the hostname, port and prefix from the fake server
+		// It will be used for configuring rhsm client
+		parsedCdnURL, err := url.Parse(cdn.URL)
+		if err != nil {
+			return nil, fmt.Errorf("unable to parse server URL: %s: %s", cdn.URL, err)
+		}
+		cdnHostname := parsedCdnURL.Hostname()
+		cdnPort := parsedCdnURL.Port()
+		cdnPrefix := parsedCdnURL.Path
+
+		rhsmClient.RHSMConf.RHSM.BaseURL = cdn.URL
+
+		// Mock connections to CDN with the mock server
+		rhsmClient.EntitlementCertAuthConnection = &RHSMConnection{
+			AuthType:       EntitlementCertAuth,
+			Client:         cdn.Client(),
+			ServerHostname: &cdnHostname,
+			ServerPort:     &cdnPort,
+			ServerPrefix:   &cdnPrefix,
+		}
 	}
 
 	// TODO: populate rhsm.conf with paths of temporary files and server hostname, port, prefix, etc.
