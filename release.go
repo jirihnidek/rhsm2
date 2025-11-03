@@ -1,6 +1,7 @@
 package rhsm2
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -48,6 +49,57 @@ func (rhsmClient *RHSMClient) getListingFile(listingPath string) (*string, error
 	}
 
 	return respBody, nil
+}
+
+// Release represents the release object returned from candlepin server
+type Release struct {
+	Version string `json:"releaseVer"`
+}
+
+// GetReleaseFromServer tries to get the latest release from the candlepin server.
+func (rhsmClient *RHSMClient) GetReleaseFromServer(clientInfo *ClientInfo) (string, error) {
+	consumerUuid, err := rhsmClient.GetConsumerUUID()
+
+	if err != nil {
+		return "", err
+	}
+
+	var headers = make(map[string]string)
+
+	if clientInfo == nil {
+		clientInfo = &ClientInfo{"", "", ""}
+	}
+	clientInfo.xCorrelationId = createCorrelationId()
+
+	res, err := rhsmClient.ConsumerCertAuthConnection.request(
+		http.MethodGet,
+		"consumers/"+*consumerUuid+"/release",
+		"",
+		"",
+		&headers,
+		nil,
+		clientInfo,
+	)
+
+	if err != nil {
+		return "", err
+	}
+
+	if res.StatusCode != 200 {
+		return "", fmt.Errorf("unable to get latest release: %d", res.StatusCode)
+	}
+	resBody, err := getResponseBody(res)
+	if err != nil {
+		return "", err
+	}
+
+	var release Release
+	err = json.Unmarshal([]byte(*resBody), &release)
+	if err != nil {
+		return "", err
+	}
+
+	return release.Version, nil
 }
 
 // GetCdnReleases tries to get the list of available releases from CDN. The list of releases is
