@@ -53,7 +53,53 @@ func (rhsmClient *RHSMClient) getListingFile(listingPath string) (*string, error
 
 // Release represents the release object returned from candlepin server
 type Release struct {
-	Version string `json:"releaseVer"`
+	ReleaseVer string `json:"releaseVer"`
+}
+
+// SetReleaseOnServer tries to set the release on the candlepin server only (not on the host in the variable
+// file in /etc/dnf/vars/).
+func (rhsmClient *RHSMClient) SetReleaseOnServer(clientInfo *ClientInfo, release string) error {
+	consumerUuid, err := rhsmClient.GetConsumerUUID()
+
+	if err != nil {
+		return err
+	}
+
+	var headers = make(map[string]string)
+
+	if clientInfo == nil {
+		clientInfo = &ClientInfo{"", "", ""}
+	}
+	clientInfo.xCorrelationId = createCorrelationId()
+
+	headers["Content-type"] = "application/json"
+	consumerData := Release{
+		ReleaseVer: release,
+	}
+	body, err := json.Marshal(consumerData)
+	if err != nil {
+		return err
+	}
+
+	res, err := rhsmClient.ConsumerCertAuthConnection.request(
+		http.MethodPut,
+		"consumers/"+*consumerUuid,
+		"",
+		"",
+		&headers,
+		&body,
+		clientInfo,
+	)
+
+	if err != nil {
+		return err
+	}
+
+	if res.StatusCode != 204 {
+		return fmt.Errorf("unable to set release: %d", res.StatusCode)
+	}
+
+	return nil
 }
 
 // GetReleaseFromServer tries to get the latest release from the candlepin server.
@@ -99,7 +145,7 @@ func (rhsmClient *RHSMClient) GetReleaseFromServer(clientInfo *ClientInfo) (stri
 		return "", err
 	}
 
-	return release.Version, nil
+	return release.ReleaseVer, nil
 }
 
 // GetCdnReleases tries to get the list of available releases from CDN. The list of releases is

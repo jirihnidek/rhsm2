@@ -518,6 +518,124 @@ func Test_GetCdnReleasesUnregistered(t *testing.T) {
 	}
 }
 
+func Test_SetReleaseOnServer(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name           string
+		releaseVer     string
+		serverResponse string
+		statusCode     int
+		wantErr        bool
+	}{
+		{
+			name:           "successful set",
+			releaseVer:     "10.1",
+			serverResponse: ``,
+			statusCode:     204,
+			wantErr:        false,
+		},
+		{
+			name:           "successful unset",
+			releaseVer:     "",
+			serverResponse: ``,
+			statusCode:     204,
+			wantErr:        false,
+		},
+		{
+			name:           "server error",
+			releaseVer:     "10.1",
+			serverResponse: "Internal Server Error",
+			statusCode:     500,
+			wantErr:        true,
+		},
+		{
+			name:           "unauthorized",
+			releaseVer:     "10.1",
+			serverResponse: "Unauthorized",
+			statusCode:     401,
+			wantErr:        true,
+		},
+		{
+			name:           "forbidden",
+			releaseVer:     "10.1",
+			serverResponse: "Forbidden",
+			statusCode:     403,
+			wantErr:        true,
+		},
+		{
+			name:           "not found",
+			releaseVer:     "10.1",
+			serverResponse: "Not Found",
+			statusCode:     404,
+			wantErr:        true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			server := httptest.NewTLSServer(
+				http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
+					if req.Method != http.MethodPut {
+						t.Fatalf("unexpected HTTP method: %s", req.Method)
+					}
+					rw.WriteHeader(tt.statusCode)
+					_, _ = rw.Write([]byte(tt.serverResponse))
+				}))
+			defer server.Close()
+
+			tempDirFilePath := t.TempDir()
+
+			testingFiles, err := setupTestingFileSystem(
+				tempDirFilePath, true, true, true, true, true)
+			if err != nil {
+				t.Fatalf("unable to setup testing environment: %s", err)
+			}
+
+			rhsmClient, err := setupTestingRHSMClient(testingFiles, server, nil)
+			if err != nil {
+				t.Fatalf("unable to setup testing rhsm client: %s", err)
+			}
+
+			err = rhsmClient.SetReleaseOnServer(nil, tt.releaseVer)
+
+			if (err != nil) != tt.wantErr {
+				t.Errorf("%s: SetReleaseOnServer() error = %v, wantErr %v", tt.name, err, tt.wantErr)
+				return
+			}
+		})
+	}
+}
+
+func Test_SetReleaseOnServerUnregistered(t *testing.T) {
+	t.Parallel()
+
+	server := httptest.NewTLSServer(
+		http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
+			t.Fatalf("no REST API call needed when system is not registered: %s %s",
+				req.Method, req.URL.String())
+		}))
+	defer server.Close()
+
+	tempDirFilePath := t.TempDir()
+
+	testingFiles, err := setupTestingFileSystem(
+		tempDirFilePath, false, false, false, false, false)
+	if err != nil {
+		t.Fatalf("unable to setup testing environment: %s", err)
+	}
+
+	rhsmClient, err := setupTestingRHSMClient(testingFiles, server, nil)
+	if err != nil {
+		t.Fatalf("unable to setup testing rhsm client: %s", err)
+	}
+
+	err = rhsmClient.SetReleaseOnServer(nil, "10.1")
+	if err == nil {
+		t.Fatal("expected error when setting release on unregistered system")
+	}
+}
+
 func Test_GetReleaseFromServer(t *testing.T) {
 	t.Parallel()
 
