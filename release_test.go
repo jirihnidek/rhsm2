@@ -517,3 +517,105 @@ func Test_GetCdnReleasesUnregistered(t *testing.T) {
 		t.Fatalf("unexpected number of CDN releases, expected 0, got %d", len(releases))
 	}
 }
+
+func Test_GetReleaseFromServer(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name           string
+		serverResponse string
+		statusCode     int
+		wantRelease    string
+		wantErr        bool
+	}{
+		{
+			name:           "successful response",
+			serverResponse: `{"releaseVer":"10.1"}`,
+			statusCode:     200,
+			wantRelease:    "10.1",
+			wantErr:        false,
+		},
+		{
+			name:           "empty response",
+			serverResponse: `{}`,
+			statusCode:     200,
+			wantRelease:    "",
+			wantErr:        false,
+		},
+		{
+			name:           "server error",
+			serverResponse: "Internal Server Error",
+			statusCode:     500,
+			wantRelease:    "",
+			wantErr:        true,
+		},
+		{
+			name:           "unauthorized",
+			serverResponse: "Unauthorized",
+			statusCode:     401,
+			wantRelease:    "",
+			wantErr:        true,
+		},
+		{
+			name:           "forbidden",
+			serverResponse: "Forbidden",
+			statusCode:     403,
+			wantRelease:    "",
+			wantErr:        true,
+		},
+		{
+			name:           "not found",
+			serverResponse: "Not Found",
+			statusCode:     404,
+			wantRelease:    "",
+			wantErr:        true,
+		},
+		{
+			name:           "invalid json",
+			serverResponse: `{"invalid": json}`,
+			statusCode:     200,
+			wantRelease:    "",
+			wantErr:        true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			server := httptest.NewTLSServer(
+				http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
+					if req.Method != http.MethodGet {
+						t.Fatalf("unexpected HTTP method: %s", req.Method)
+					}
+					if !strings.HasSuffix(req.URL.Path, "/release") {
+						t.Fatalf("unexpected URL path: %s", req.URL.Path)
+					}
+					rw.WriteHeader(tt.statusCode)
+					_, _ = rw.Write([]byte(tt.serverResponse))
+				}))
+			defer server.Close()
+
+			tempDirFilePath := t.TempDir()
+
+			testingFiles, err := setupTestingFileSystem(
+				tempDirFilePath, true, true, true, true, true)
+			if err != nil {
+				t.Fatalf("unable to setup testing environment: %s", err)
+			}
+
+			rhsmClient, err := setupTestingRHSMClient(testingFiles, server, nil)
+			if err != nil {
+				t.Fatalf("unable to setup testing rhsm client: %s", err)
+			}
+
+			release, err := rhsmClient.GetReleaseFromServer(nil)
+
+			if (err != nil) != tt.wantErr {
+				t.Errorf("%s: GetReleaseFromServer() error = %v, wantErr %v", tt.name, err, tt.wantErr)
+				return
+			}
+			if release != tt.wantRelease {
+				t.Errorf("%s: GetReleaseFromServer() = %v, want %v", tt.name, release, tt.wantRelease)
+			}
+		})
+	}
+}
