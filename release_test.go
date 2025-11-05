@@ -128,6 +128,7 @@ func Test_getListingPathFromEngProducts(t *testing.T) {
 	tests := []struct {
 		name                 string
 		engineeringProducts  map[int64][]EngineeringProduct
+		productTags          []string
 		expectedListingPaths map[string]struct{}
 	}{
 		{
@@ -142,6 +143,26 @@ func Test_getListingPathFromEngProducts(t *testing.T) {
 					{
 						Content: []Content{
 							{
+								Path:         "/content/$releasever/foo",
+								Enabled:      &enabled,
+								RequiredTags: []string{"rhel-11", "rhel-11-x86_68"},
+							},
+						},
+					},
+				},
+			},
+			productTags: []string{"rhel-11"},
+			expectedListingPaths: map[string]struct{}{
+				"/content/": {},
+			},
+		},
+		{
+			name: "single product with single content without required tags",
+			engineeringProducts: map[int64][]EngineeringProduct{
+				1: {
+					{
+						Content: []Content{
+							{
 								Path:    "/content/$releasever/foo",
 								Enabled: &enabled,
 							},
@@ -149,6 +170,7 @@ func Test_getListingPathFromEngProducts(t *testing.T) {
 					},
 				},
 			},
+			productTags: []string{"rhel-11"},
 			expectedListingPaths: map[string]struct{}{
 				"/content/": {},
 			},
@@ -160,13 +182,15 @@ func Test_getListingPathFromEngProducts(t *testing.T) {
 					{
 						Content: []Content{
 							{
-								Path:    "/content/$releasever/foo",
-								Enabled: nil,
+								Path:         "/content/$releasever/foo",
+								Enabled:      nil,
+								RequiredTags: []string{"rhel-11", "rhel-11-x86_68"},
 							},
 						},
 					},
 				},
 			},
+			productTags: []string{"rhel-11"},
 			expectedListingPaths: map[string]struct{}{
 				"/content/": {},
 			},
@@ -178,12 +202,14 @@ func Test_getListingPathFromEngProducts(t *testing.T) {
 					{
 						Content: []Content{
 							{
-								Path:    "/content/$releasever/foo",
-								Enabled: &enabled,
+								Path:         "/content/$releasever/foo",
+								Enabled:      &enabled,
+								RequiredTags: []string{"rhel-11", "rhel-11-x86_68"},
 							},
 							{
-								Path:    "/content2/$releasever/foo",
-								Enabled: &enabled,
+								Path:         "/content2/$releasever/foo",
+								Enabled:      &enabled,
+								RequiredTags: []string{"rhel-11", "rhel-11-x86_68"},
 							},
 						},
 					},
@@ -192,13 +218,15 @@ func Test_getListingPathFromEngProducts(t *testing.T) {
 					{
 						Content: []Content{
 							{
-								Path:    "/content3/$releasever/foo",
-								Enabled: &enabled,
+								Path:         "/content3/$releasever/foo",
+								Enabled:      &enabled,
+								RequiredTags: []string{"rhel-11", "rhel-11-x86_68"},
 							},
 						},
 					},
 				},
 			},
+			productTags: []string{"rhel-11"},
 			expectedListingPaths: map[string]struct{}{
 				"/content/":  {},
 				"/content2/": {},
@@ -212,12 +240,14 @@ func Test_getListingPathFromEngProducts(t *testing.T) {
 					{
 						Content: []Content{
 							{
-								Path:    "/content/$releasever/foo",
-								Enabled: &enabled,
+								Path:         "/content/$releasever/foo",
+								Enabled:      &enabled,
+								RequiredTags: []string{"rhel-11", "rhel-11-x86_68"},
 							},
 							{
-								Path:    "/content/$releasever/bar",
-								Enabled: &enabled,
+								Path:         "/content/$releasever/bar",
+								Enabled:      &enabled,
+								RequiredTags: []string{"rhel-11", "rhel-11-x86_68"},
 							},
 						},
 					},
@@ -226,13 +256,15 @@ func Test_getListingPathFromEngProducts(t *testing.T) {
 					{
 						Content: []Content{
 							{
-								Path:    "/content/$releasever/baz",
-								Enabled: &enabled,
+								Path:         "/content/$releasever/baz",
+								Enabled:      &enabled,
+								RequiredTags: []string{"rhel-11", "rhel-11-x86_68"},
 							},
 						},
 					},
 				},
 			},
+			productTags: []string{"rhel-11"},
 			expectedListingPaths: map[string]struct{}{
 				"/content/": {},
 			},
@@ -244,17 +276,20 @@ func Test_getListingPathFromEngProducts(t *testing.T) {
 					{
 						Content: []Content{
 							{
-								Path:    "/content/$releasever/foo",
-								Enabled: &disabled,
+								Path:         "/content/$releasever/foo",
+								Enabled:      &disabled,
+								RequiredTags: []string{"rhel-11", "rhel-11-x86_68"},
 							},
 							{
-								Path:    "/content2/$releasever/foo",
-								Enabled: &enabled,
+								Path:         "/content2/$releasever/foo",
+								Enabled:      &enabled,
+								RequiredTags: []string{"rhel-11", "rhel-11-x86_68"},
 							},
 						},
 					},
 				},
 			},
+			productTags: []string{"rhel-11"},
 			expectedListingPaths: map[string]struct{}{
 				"/content2/": {},
 			},
@@ -263,7 +298,7 @@ func Test_getListingPathFromEngProducts(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := getListingPathFromEngProducts(tt.engineeringProducts)
+			got := getListingPathFromEngProducts(tt.engineeringProducts, tt.productTags)
 			if len(got) != len(tt.expectedListingPaths) {
 				t.Errorf("getListingPathFromEngProducts() got = %v, expected %v", got, tt.expectedListingPaths)
 				return
@@ -602,6 +637,81 @@ func Test_SetReleaseOnServer(t *testing.T) {
 			if (err != nil) != tt.wantErr {
 				t.Errorf("%s: SetReleaseOnServer() error = %v, wantErr %v", tt.name, err, tt.wantErr)
 				return
+			}
+		})
+	}
+}
+
+func Test_isAnyRequiredTagProvided(t *testing.T) {
+	tests := []struct {
+		name         string
+		content      Content
+		providedTags []string
+		want         bool
+	}{
+		{
+			name: "empty required tags and empty provided tags",
+			content: Content{
+				RequiredTags: []string{},
+			},
+			providedTags: []string{},
+			want:         true,
+		},
+		{
+			name: "empty required tags",
+			content: Content{
+				RequiredTags: []string{},
+			},
+			providedTags: []string{"rhel-11"},
+			want:         true,
+		},
+		{
+			name: "empty provided tags",
+			content: Content{
+				RequiredTags: []string{"rhel-11"},
+			},
+			providedTags: []string{},
+			want:         false,
+		},
+		{
+			name: "matching tags",
+			content: Content{
+				RequiredTags: []string{"rhel-11", "rhel-11-x86_64"},
+			},
+			providedTags: []string{"rhel-11"},
+			want:         true,
+		},
+		{
+			name: "non-matching tags",
+			content: Content{
+				RequiredTags: []string{"rhel-11", "rhel-11-x86_64"},
+			},
+			providedTags: []string{"rhel-9", "rhel-9-aarch64"},
+			want:         false,
+		},
+		{
+			name: "nil required tags",
+			content: Content{
+				RequiredTags: nil,
+			},
+			providedTags: []string{"rhel-11"},
+			want:         true,
+		},
+		{
+			name: "nil provided tags",
+			content: Content{
+				RequiredTags: []string{"rhel-11"},
+			},
+			providedTags: nil,
+			want:         false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := isAnyRequiredTagProvided(tt.content, tt.providedTags)
+			if got != tt.want {
+				t.Errorf("%s: isAnyRequiredTagProvided() = %v, want %v", tt.name, got, tt.want)
 			}
 		})
 	}

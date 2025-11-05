@@ -6,10 +6,11 @@ import (
 	"encoding/asn1"
 	"encoding/pem"
 	"fmt"
-	"github.com/rs/zerolog/log"
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/rs/zerolog/log"
 )
 
 const RedhatOidNamespace = "1.3.6.1.4.1.2312.9"
@@ -29,6 +30,7 @@ type InstalledProduct struct {
 	providedTags []string
 	brandType    string
 	brandName    string
+	filePath     string
 }
 
 // DirectoryDefaultProductCertificate is directory containing default
@@ -139,6 +141,7 @@ func parseProductCertificateContent(productCertFilePath *string, productCertCont
 							*productCertFilePath, err)
 					}
 				}
+				installedProduct.filePath = *productCertFilePath
 
 				return &installedProduct, nil
 			}
