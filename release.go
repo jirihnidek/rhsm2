@@ -12,6 +12,36 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
+// isAnyRequiredTagProvided tries to find if any of the required tags is provided in the list
+// of release tags. The required tags are provided in the content.RequiredTags field.
+//
+// The function returns true if any of the required tags is provided in the release tags.
+// Otherwise, it returns false.
+//
+// Example:
+//
+//	content.RequiredTags = ["rhel-11", "rhel-11-x86_64"]
+//	releaseTags = ["rhel-11-x86_64"]
+//	isAnyRequiredTagProvided(content, releaseTags) -> true
+func isAnyRequiredTagProvided(content Content, releaseTags []string) bool {
+	// If content does not have any required tags, return true
+	if len(content.RequiredTags) == 0 {
+		return true
+	}
+	// Check if any of the required tags is provided in the release tags
+	for _, requiredTag := range content.RequiredTags {
+		for _, releaseTag := range releaseTags {
+			if strings.HasPrefix(releaseTag, requiredTag) {
+				log.Debug().Msgf("required tag %s matches release tags: %s", requiredTag, releaseTags)
+				return true
+			}
+		}
+	}
+	log.Debug().Msgf("no of required tags %s for content %s found in release tags: %s",
+		content.RequiredTags, content.Id, releaseTags)
+	return false
+}
+
 // getListingPath tries to get a listing path from the content path. The listing path is the path
 // where is probably stored the 'listing' file containing the list of available releases.
 func getListingPath(contentPath *string) (string, error) {
@@ -27,6 +57,7 @@ func getListingPath(contentPath *string) (string, error) {
 	return "", fmt.Errorf("cannot split: '%s' using '$releasever' keyword", *contentPath)
 }
 
+// getListingFile tries to get the content of the 'listing' file from CDN
 func (rhsmClient *RHSMClient) getListingFile(listingPath string) (*string, error) {
 	resp, err := rhsmClient.EntitlementCertAuthConnection.request(
 		http.MethodGet,
@@ -148,6 +179,24 @@ func (rhsmClient *RHSMClient) GetReleaseFromServer(clientInfo *ClientInfo) (stri
 	return release.ReleaseVer, nil
 }
 
+// getReleaseTags tries to get the list of tags from installed product certificates.
+func (rhsmClient *RHSMClient) getReleaseTags() ([]string, error) {
+	installedProducts := rhsmClient.getInstalledProducts()
+	if len(installedProducts) == 0 {
+		return nil, errors.New("no installed product certificate found")
+	}
+	var installedProductFilePaths []string
+	for _, product := range installedProducts {
+		installedProductFilePaths = append(installedProductFilePaths, product.filePath)
+	}
+	log.Debug().Msgf("trying to get release tags from installed products: %v", installedProductFilePaths)
+	// TODO: Use only product certificate that matches current release of Linux distribution.
+	//       E.g.: When current major release is RHEL 11, use only product certificate
+	//       that contains tags for RHEL 11
+	requiredTags := createListOfContentTags(installedProducts)
+	return requiredTags, nil
+}
+
 // GetCdnReleases tries to get the list of available releases from CDN. The list of releases is
 // should include only unique values of releases. There should not be any duplicates.
 func (rhsmClient *RHSMClient) GetCdnReleases(clientInfo *ClientInfo) (map[string]struct{}, error) {
@@ -166,7 +215,17 @@ func (rhsmClient *RHSMClient) GetCdnReleases(clientInfo *ClientInfo) (map[string
 		return nil, errors.New("no engineering products found")
 	}
 
-	listingPaths := getListingPathFromEngProducts(engineeringProductsMap)
+	// Get the list tags from installed product certificates
+	// These tags will be used for filtering the content path
+	// used for getting the list of available releases
+	releaseTags, err := rhsmClient.getReleaseTags()
+	if err != nil {
+		log.Debug().Msgf("unable to get release tags: %s", err)
+		return nil, err
+	}
+	log.Debug().Msgf("release tags: %v", releaseTags)
+
+	listingPaths := getListingPathFromEngProducts(engineeringProductsMap, releaseTags)
 
 	releases := rhsmClient.getAllReleasesFromPaths(listingPaths)
 
@@ -202,21 +261,30 @@ func (rhsmClient *RHSMClient) getAllReleasesFromPaths(listingPaths map[string]st
 // getListingPathFromEngProducts tries to get the content path, which should contain the 'listing' file.
 // We detect candidates if the content path contains the '$releasever' keyword.
 // The list of content paths is returned as a map. Thus, there should not be any duplicates.
-// Each item of the map contains the list of content labels.
-func getListingPathFromEngProducts(engineeringProductsMap map[int64][]EngineeringProduct) map[string]struct{} {
+// Each item of the map contains the list of content labels. The list of release tags is used for
+// filtering the content.
+func getListingPathFromEngProducts(
+	engineeringProductsMap map[int64][]EngineeringProduct,
+	releaseTags []string,
+) map[string]struct{} {
 	// Go through all products and get all unique base content paths
 	listingPaths := make(map[string]struct{})
 	for _, products := range engineeringProductsMap {
 		for _, product := range products {
 			for _, content := range product.Content {
+				// If the content->enabled is not defined in the entitlement certificate,
+				// then the content is considered as enabled by default.
 				if content.Enabled == nil || *content.Enabled {
-					basePath, err := getListingPath(&content.Path)
-					if err != nil {
-						continue
-					}
-					if _, exists := listingPaths[basePath]; !exists {
-						log.Debug().Msgf("adding path %s to the list of listing paths", basePath)
-						listingPaths[basePath] = struct{}{}
+					// Check if any of tag required by content is provided in the release tags
+					if isAnyRequiredTagProvided(content, releaseTags) {
+						basePath, err := getListingPath(&content.Path)
+						if err != nil {
+							continue
+						}
+						if _, exists := listingPaths[basePath]; !exists {
+							log.Debug().Msgf("adding path %s to the list of listing paths", basePath)
+							listingPaths[basePath] = struct{}{}
+						}
 					}
 				}
 			}

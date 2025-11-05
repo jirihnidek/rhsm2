@@ -170,8 +170,8 @@ func setupTestingFiles(
 	// but there are other Linux distributions without preinstalled product certificates
 	// like Fedora or Centos Stream
 	if defaultProdCertsInstalled {
-		srcDefaultProductCertFilePath := "./testdata/etc/pki/product-default/5050.pem"
-		dstDefaultProductCertFilePath := filepath.Join(testingFileSystem.ProductDefaultDirPath, "5050.pem")
+		srcDefaultProductCertFilePath := "./testdata/etc/pki/product-default/479.pem"
+		dstDefaultProductCertFilePath := filepath.Join(testingFileSystem.ProductDefaultDirPath, "479.pem")
 		err := copyFile(&srcDefaultProductCertFilePath, &dstDefaultProductCertFilePath, perm)
 		if err != nil {
 			return fmt.Errorf("unable to create testing default product cert file: %s", err)
