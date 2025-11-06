@@ -13,32 +13,29 @@ import (
 )
 
 // isAnyRequiredTagProvided tries to find if any of the required tags is provided in the list
-// of release tags. The required tags are provided in the content.RequiredTags field.
-//
-// The function returns true if any of the required tags is provided in the release tags.
-// Otherwise, it returns false.
+// of release tags. The function returns true if any of the required tags is provided in the
+// release tags. Otherwise, it returns false.
 //
 // Example:
 //
-//	content.RequiredTags = ["rhel-11", "rhel-11-x86_64"]
+//	requiredTags = ["rhel-11", "rhel-11-x86_64"]
 //	releaseTags = ["rhel-11-x86_64"]
-//	isAnyRequiredTagProvided(content, releaseTags) -> true
-func isAnyRequiredTagProvided(content Content, releaseTags []string) bool {
-	// If content does not have any required tags, return true
-	if len(content.RequiredTags) == 0 {
+//	isAnyRequiredTagProvided(requiredTags, releaseTags) -> true
+func isAnyRequiredTagProvided(requiredTags []string, releaseTags []string) bool {
+	// If no tags are required, then return true
+	if len(requiredTags) == 0 {
 		return true
 	}
 	// Check if any of the required tags is provided in the release tags
-	for _, requiredTag := range content.RequiredTags {
+	for _, requiredTag := range requiredTags {
 		for _, releaseTag := range releaseTags {
+			// It is enough to check if the required tag starts with the release tag.
 			if strings.HasPrefix(releaseTag, requiredTag) {
 				log.Debug().Msgf("required tag %s matches release tags: %s", requiredTag, releaseTags)
 				return true
 			}
 		}
 	}
-	log.Debug().Msgf("no of required tags %s for content %s found in release tags: %s",
-		content.RequiredTags, content.Id, releaseTags)
 	return false
 }
 
@@ -276,15 +273,20 @@ func getListingPathFromEngProducts(
 				// then the content is considered as enabled by default.
 				if content.Enabled == nil || *content.Enabled {
 					// Check if any of tag required by content is provided in the release tags
-					if isAnyRequiredTagProvided(content, releaseTags) {
-						basePath, err := getListingPath(&content.Path)
-						if err != nil {
-							continue
-						}
-						if _, exists := listingPaths[basePath]; !exists {
-							log.Debug().Msgf("adding path %s to the list of listing paths", basePath)
-							listingPaths[basePath] = struct{}{}
-						}
+					if !isAnyRequiredTagProvided(content.RequiredTags, releaseTags) {
+						log.Debug().Msgf(
+							"skipping content: '%s'; no of its required tags: %s found in release tags: %s",
+							content.Label, content.RequiredTags, releaseTags,
+						)
+						continue
+					}
+					basePath, err := getListingPath(&content.Path)
+					if err != nil {
+						continue
+					}
+					if _, exists := listingPaths[basePath]; !exists {
+						log.Debug().Msgf("adding path %s to the list of listing paths", basePath)
+						listingPaths[basePath] = struct{}{}
 					}
 				}
 			}
