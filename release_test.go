@@ -176,6 +176,24 @@ func Test_getListingPathFromEngProducts(t *testing.T) {
 			},
 		},
 		{
+			name: "single product with single content with required tags not matching product tags",
+			engineeringProducts: map[int64][]EngineeringProduct{
+				1: {
+					{
+						Content: []Content{
+							{
+								Path:         "/content/$releasever/foo",
+								Enabled:      &enabled,
+								RequiredTags: []string{"rhel-12", "rhel-12-x86_68"},
+							},
+						},
+					},
+				},
+			},
+			productTags:          []string{"rhel-11"},
+			expectedListingPaths: map[string]struct{}{},
+		},
+		{
 			name: "single product with single content (enabled by default by nil)",
 			engineeringProducts: map[int64][]EngineeringProduct{
 				1: {
@@ -645,63 +663,49 @@ func Test_SetReleaseOnServer(t *testing.T) {
 func Test_isAnyRequiredTagProvided(t *testing.T) {
 	tests := []struct {
 		name         string
-		content      Content
+		requiredTags []string
 		providedTags []string
 		want         bool
 	}{
 		{
-			name: "empty required tags and empty provided tags",
-			content: Content{
-				RequiredTags: []string{},
-			},
+			name:         "empty required tags and empty provided tags",
+			requiredTags: []string{},
 			providedTags: []string{},
 			want:         true,
 		},
 		{
-			name: "empty required tags",
-			content: Content{
-				RequiredTags: []string{},
-			},
+			name:         "empty required tags",
+			requiredTags: []string{},
 			providedTags: []string{"rhel-11"},
 			want:         true,
 		},
 		{
-			name: "empty provided tags",
-			content: Content{
-				RequiredTags: []string{"rhel-11"},
-			},
+			name:         "empty provided tags",
+			requiredTags: []string{"rhel-11"},
 			providedTags: []string{},
 			want:         false,
 		},
 		{
-			name: "matching tags",
-			content: Content{
-				RequiredTags: []string{"rhel-11", "rhel-11-x86_64"},
-			},
+			name:         "matching tags",
+			requiredTags: []string{"rhel-11", "rhel-11-x86_64"},
 			providedTags: []string{"rhel-11"},
 			want:         true,
 		},
 		{
-			name: "non-matching tags",
-			content: Content{
-				RequiredTags: []string{"rhel-11", "rhel-11-x86_64"},
-			},
+			name:         "non-matching tags",
+			requiredTags: []string{"rhel-11", "rhel-11-x86_64"},
 			providedTags: []string{"rhel-9", "rhel-9-aarch64"},
 			want:         false,
 		},
 		{
-			name: "nil required tags",
-			content: Content{
-				RequiredTags: nil,
-			},
+			name:         "nil required tags",
+			requiredTags: nil,
 			providedTags: []string{"rhel-11"},
 			want:         true,
 		},
 		{
-			name: "nil provided tags",
-			content: Content{
-				RequiredTags: []string{"rhel-11"},
-			},
+			name:         "nil provided tags",
+			requiredTags: []string{"rhel-11"},
 			providedTags: nil,
 			want:         false,
 		},
@@ -709,7 +713,7 @@ func Test_isAnyRequiredTagProvided(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := isAnyRequiredTagProvided(tt.content, tt.providedTags)
+			got := isAnyRequiredTagProvided(tt.requiredTags, tt.providedTags)
 			if got != tt.want {
 				t.Errorf("%s: isAnyRequiredTagProvided() = %v, want %v", tt.name, got, tt.want)
 			}
