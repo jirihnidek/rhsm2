@@ -2,11 +2,12 @@ package rhsm2
 
 import (
 	"fmt"
-	"github.com/creasty/defaults"
-	"gopkg.in/ini.v1"
 	"reflect"
 	"strconv"
 	"strings"
+
+	"github.com/creasty/defaults"
+	"gopkg.in/ini.v1"
 )
 
 const DefaultRHSMConfFilePath = "/etc/rhsm/rhsm.conf"
@@ -70,14 +71,19 @@ type RHSMConfLogging struct {
 type RHSMConf struct {
 	// Not public attributes
 
-	// filePath is file path of configuration file
+	// filePath is the file path of the configuration file
 	filePath string
 
-	// yumRepoFilePath is file path to redhat.repo
+	// yumRepoFilePath is the file path of the redhat.repo file
 	yumRepoFilePath string
 
-	// syspurposeFilePath is file path to syspurpose.json file
+	// syspurposeFilePath is the file path of the syspurpose.json file
 	syspurposeFilePath string
+
+	// osReleaseFilePath is the file path of the os-release file
+	osReleaseFilePath string
+
+	// Public attributes
 
 	// Server represents section [server]
 	Server RHSMConfServer `ini:"server"`
@@ -177,6 +183,7 @@ func LoadRHSMConf(confFilePath string) (*RHSMConf, error) {
 		filePath:           confFilePath,
 		yumRepoFilePath:    DefaultRepoFilePath,
 		syspurposeFilePath: DefaultSystemPurposeFilePath,
+		osReleaseFilePath:  DefaultOsReleaseFilePath,
 	}
 
 	err := rhsmConf.load()
