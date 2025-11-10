@@ -85,6 +85,8 @@ func copyFile(srcFilePath *string, dstFilePath *string, perm *os.FileMode) error
 // TestingFileSystem is structure holding information about file paths
 // used for testing
 type TestingFileSystem struct {
+	EtcDirPath            string
+	OsReleaseFilePath     string
 	CACertDirPath         string
 	ConsumerDirPath       string
 	EntitlementDirPath    string
@@ -106,6 +108,16 @@ func setupTestingFiles(
 	defaultProdCertsInstalled bool,
 	perm *os.FileMode,
 ) error {
+	// Create /etc/os-release file
+	srcOsReleaseFilePath := "./testdata/etc/os-release"
+	dstOsReleaseFilePath := filepath.Join(testingFileSystem.EtcDirPath, "os-release")
+	err := copyFile(&srcOsReleaseFilePath, &dstOsReleaseFilePath, perm)
+	if err != nil {
+		return fmt.Errorf(
+			"unable to create testing os-release file: %s", err)
+	}
+	testingFileSystem.OsReleaseFilePath = dstOsReleaseFilePath
+
 	if syspurposeFilesInstalled {
 		// Copy syspurpose file to temporary directory
 		srcSyspurposeFilePath := "./testdata/etc/rhsm/syspurpose/syspurpose.json"
@@ -113,7 +125,7 @@ func setupTestingFiles(
 		err := copyFile(&srcSyspurposeFilePath, &dstSyspurposeFilePath, perm)
 		if err != nil {
 			return fmt.Errorf(
-				"unable to create testing consumer key file: %s", err)
+				"unable to create syspurpose testing file: %s", err)
 		}
 		testingFileSystem.SyspurposeFilePath = dstSyspurposeFilePath
 	}
@@ -180,7 +192,7 @@ func setupTestingFiles(
 
 	// Create only empty redhat.repo ATM
 	yumRepoFilePath := filepath.Join(testingFileSystem.YumReposDirPath, "redhat.repo")
-	_, err := os.Create(yumRepoFilePath)
+	_, err = os.Create(yumRepoFilePath)
 	if err != nil {
 		return fmt.Errorf("unable to create %s: %s", yumRepoFilePath, err)
 	}
@@ -204,6 +216,12 @@ func createDirectory(tempDirFilePath string, dirPath string, perm os.FileMode) (
 // setupTestingDirectories tries to set up directories for testing filesystem
 func setupTestingDirectories(tempDirFilePath string, perm os.FileMode) (*TestingFileSystem, error) {
 	testingFileSystem := TestingFileSystem{}
+	// Create a temporary directory for /etc
+	etcDirPath, err := createDirectory(tempDirFilePath, "etc", perm)
+	if err != nil {
+		return nil, err
+	}
+	testingFileSystem.EtcDirPath = *etcDirPath
 
 	// Create temporary directory for CA certificate
 	caCertDirPath, err := createDirectory(tempDirFilePath, "etc/rhsm/ca", perm)
@@ -353,6 +371,7 @@ func setupTestingRHSMClient(testingFiles *TestingFileSystem, server *httptest.Se
 	rhsmClient.RHSMConf = &RHSMConf{
 		yumRepoFilePath:    testingFiles.YumRepoFilePath,
 		syspurposeFilePath: testingFiles.SyspurposeFilePath,
+		osReleaseFilePath:  testingFiles.OsReleaseFilePath,
 		RHSM: RHSMConfRHSM{
 			ConsumerCertDir:       testingFiles.ConsumerDirPath,
 			EntitlementCertDir:    testingFiles.EntitlementDirPath,

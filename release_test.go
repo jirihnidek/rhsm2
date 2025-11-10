@@ -640,7 +640,13 @@ func Test_SetReleaseOnServer(t *testing.T) {
 			tempDirFilePath := t.TempDir()
 
 			testingFiles, err := setupTestingFileSystem(
-				tempDirFilePath, true, true, true, true, true)
+				tempDirFilePath,
+				true,
+				true,
+				true,
+				true,
+				true,
+			)
 			if err != nil {
 				t.Fatalf("unable to setup testing environment: %s", err)
 			}
@@ -847,6 +853,137 @@ func Test_GetReleaseFromServer(t *testing.T) {
 			}
 			if release != tt.wantRelease {
 				t.Errorf("%s: GetReleaseFromServer() = %v, want %v", tt.name, release, tt.wantRelease)
+			}
+		})
+	}
+}
+
+func Test_parseOSRelease(t *testing.T) {
+	tests := []struct {
+		name    string
+		content string
+		want    OSRelease
+		wantErr bool
+	}{
+		{
+			name:    "empty content",
+			content: "",
+			want:    OSRelease{},
+			wantErr: true,
+		},
+		{
+			name: "valid RHEL content of os-release file",
+			content: `NAME="Red Hat Enterprise Linux"
+VERSION="11.5 (Foo)"
+ID="rhel"
+ID_LIKE="fedora"
+VERSION_ID="11.5"
+PLATFORM_ID="platform:el11"
+PRETTY_NAME="Red Hat Enterprise Linux 11.5 (Foo)"
+ANSI_COLOR="0;31"
+CPE_NAME="cpe:/o:redhat:enterprise_linux:11::baseos"
+HOME_URL="https://www.redhat.com/"
+BUG_REPORT_URL="https://bugzilla.redhat.com/"
+REDHAT_BUGZILLA_PRODUCT="Red Hat Enterprise Linux 11"
+REDHAT_BUGZILLA_PRODUCT_VERSION=11.5
+REDHAT_SUPPORT_PRODUCT="Red Hat Enterprise Linux"
+REDHAT_SUPPORT_PRODUCT_VERSION="11.5"`,
+			want: OSRelease{
+				ID:           "rhel",
+				VersionID:    "11.5",
+				VersionMajor: "11",
+				VersionMinor: "5",
+			},
+			wantErr: false,
+		},
+		{
+			name: "valid RHEL content of os-release file with more sub-minor versions",
+			content: `NAME="Red Hat Enterprise Linux"
+VERSION="12.3.1 (Bar)"
+ID="rhel"
+ID_LIKE="fedora"
+VERSION_ID="12.3.1"
+PLATFORM_ID="platform:el12"
+PRETTY_NAME="Red Hat Enterprise Linux 12.3.1 (Bar)"
+ANSI_COLOR="0;31"
+CPE_NAME="cpe:/o:redhat:enterprise_linux:12::baseos"
+HOME_URL="https://www.redhat.com/"
+BUG_REPORT_URL="https://bugzilla.redhat.com/"
+REDHAT_BUGZILLA_PRODUCT="Red Hat Enterprise Linux 11"
+REDHAT_BUGZILLA_PRODUCT_VERSION=12.3.1
+REDHAT_SUPPORT_PRODUCT="Red Hat Enterprise Linux"
+REDHAT_SUPPORT_PRODUCT_VERSION="12.3.1"`,
+			want: OSRelease{
+				ID:           "rhel",
+				VersionID:    "12.3.1",
+				VersionMajor: "12",
+				VersionMinor: "3",
+			},
+			wantErr: false,
+		},
+		{
+			name: "valid Fedora content of os-release file (no minor version)",
+			content: `NAME="Fedora Linux"
+VERSION="43 (Workstation Edition)"
+RELEASE_TYPE=stable
+ID=fedora
+VERSION_ID=43
+VERSION_CODENAME=""
+PRETTY_NAME="Fedora Linux 43 (Workstation Edition)"
+ANSI_COLOR="0;38;2;60;110;180"
+LOGO=fedora-logo-icon
+CPE_NAME="cpe:/o:fedoraproject:fedora:43"
+DEFAULT_HOSTNAME="fedora"
+HOME_URL="https://fedoraproject.org/"
+DOCUMENTATION_URL="https://docs.fedoraproject.org/en-US/fedora/f43/"
+SUPPORT_URL="https://ask.fedoraproject.org/"
+BUG_REPORT_URL="https://bugzilla.redhat.com/"
+REDHAT_BUGZILLA_PRODUCT="Fedora"
+REDHAT_BUGZILLA_PRODUCT_VERSION=43
+REDHAT_SUPPORT_PRODUCT="Fedora"
+REDHAT_SUPPORT_PRODUCT_VERSION=43
+SUPPORT_END=2026-12-02
+VARIANT="Workstation Edition"
+VARIANT_ID=workstation`,
+			want: OSRelease{
+				ID:           "fedora",
+				VersionID:    "43",
+				VersionMajor: "43",
+				VersionMinor: "",
+			},
+			wantErr: false,
+		},
+		{
+			name: "invalid content of os-release file",
+			content: `NAME=Red Hat Enterprise Linux
+VERSION=11.5 (Foo)
+INVALID_LINE
+ID=rhel`,
+			want:    OSRelease{},
+			wantErr: true,
+		},
+		{
+			name: "missing required fields in os-release file",
+			content: `ANSI_COLOR="0;31"
+HOME_URL="https://www.redhat.com/"`,
+			want:    OSRelease{},
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			byteContent := []byte(tt.content)
+			got, err := parseOSRelease(&byteContent)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("parseOSRelease() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if tt.wantErr {
+				return
+			}
+			if got != nil && *got != tt.want {
+				t.Errorf("parseOSRelease() = %v, want %v", got, tt.want)
 			}
 		})
 	}

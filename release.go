@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"os"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -52,6 +53,135 @@ func getListingPath(contentPath *string) (string, error) {
 	}
 
 	return "", fmt.Errorf("cannot split: '%s' using '$releasever' keyword", *contentPath)
+}
+
+const DefaultOsReleaseFilePath = "/etc/os-release"
+
+type OSRelease struct {
+	ID           string
+	VersionID    string
+	VersionMajor string
+	VersionMinor string
+}
+
+// parseOSRelease tries to parse the content of the /etc/os-release file.
+// It reads only the ID and VERSION_ID attributes.
+func parseOSRelease(content *[]byte) (*OSRelease, error) {
+	release := OSRelease{}
+	lines := strings.Split(string(*content), "\n")
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		parts := strings.SplitN(line, "=", 2)
+		if len(parts) != 2 {
+			continue
+		}
+		key := strings.TrimSpace(parts[0])
+		value := strings.Trim(strings.TrimSpace(parts[1]), "\"'")
+
+		switch key {
+		case "ID":
+			release.ID = value
+		case "VERSION_ID":
+			release.VersionID = value
+		}
+	}
+
+	if release.ID == "" || release.VersionID == "" {
+		return nil, fmt.Errorf("unable to parse ID or VERSION_ID from os release file")
+	}
+
+	// Split the version ID into the major and minor version
+	versionParts := strings.Split(release.VersionID, ".")
+	if len(versionParts) > 0 {
+		release.VersionMajor = versionParts[0]
+		if len(versionParts) > 1 {
+			release.VersionMinor = versionParts[1]
+		}
+	}
+
+	return &release, nil
+}
+
+// filterInstalledProductsUsingOSRelease tries to filter the list of installed product certificates
+// using the current release of Linux distribution.
+//
+// Example:
+//
+//		installedProducts = [
+//			{
+//				filePath: "/etc/pki/product/698.pem",
+//				providedTags: ["rhel-11", "rhel-11-x86_64"]
+//			},
+//			{
+//				filePath: "/etc/pki/product/69.pem",
+//				providedTags: ["rhel-7", "rhel-7-x86_64"]
+//			},
+//	 ]
+//
+//		osRelease = {
+//			ID: "rhel",
+//			VersionID: "11"
+//		}
+//
+//		filterInstalledProductsUsingOSRelease(installedProducts, osRelease) -> [
+//			{
+//				filePath: "/etc/pki/product/698.pem",
+//				providedTags: ["rhel-11", "rhel-11-x86_64"]
+//			},
+//
+// ]
+func (rhsmClient *RHSMClient) filterInstalledProductsUsingOSRelease(installedProducts []InstalledProduct) ([]InstalledProduct, error) {
+	content, err := os.ReadFile(rhsmClient.RHSMConf.osReleaseFilePath)
+	if err != nil {
+		return nil, fmt.Errorf("unable to read %s: %s", rhsmClient.RHSMConf.osReleaseFilePath, err)
+	}
+
+	release, err := parseOSRelease(&content)
+	if err != nil {
+		return nil, err
+	}
+
+	log.Debug().Msgf("os release: %s-%s parsed from: %v",
+		release.ID,
+		release.VersionMajor,
+		rhsmClient.RHSMConf.osReleaseFilePath,
+	)
+
+	// Tag in product certificates should follow the pattern: <os-release>-<major-version>*
+	osReleaseTag := strings.ToLower(release.ID) + "-" + release.VersionMajor
+
+	var filteredProducts []InstalledProduct
+	for _, product := range installedProducts {
+		found := false
+		// Look for tags that match the current OS release version
+		// E.g.: When running RHEL 11, look for rhel-11 tags
+		for _, tag := range product.providedTags {
+			if strings.HasPrefix(tag, osReleaseTag) {
+				filteredProducts = append(filteredProducts, product)
+				found = true
+				break
+			}
+		}
+		if !found {
+			log.Warn().Msgf(
+				"skipping product: %s; its tags: %s do not match os release: %s",
+				product.filePath,
+				product.providedTags,
+				osReleaseTag,
+			)
+		}
+	}
+
+	if len(filteredProducts) == 0 {
+		return filteredProducts, fmt.Errorf(
+			"no installed product certificate matches os release: %s", osReleaseTag,
+		)
+	}
+
+	return filteredProducts, nil
 }
 
 // getListingFile tries to get the content of the 'listing' file from CDN
@@ -182,14 +312,21 @@ func (rhsmClient *RHSMClient) getReleaseTags() ([]string, error) {
 	if len(installedProducts) == 0 {
 		return nil, errors.New("no installed product certificate found")
 	}
+
+	// Use only product certificate that matches current release of Linux distribution.
+	// E.g.: When the current major release is RHEL 11, use only product certificates
+	// that contain tags for RHEL 11
+	filteredInstalledProducts, err := rhsmClient.filterInstalledProductsUsingOSRelease(installedProducts)
+	if err != nil {
+		return nil, err
+	}
+
 	var installedProductFilePaths []string
-	for _, product := range installedProducts {
+	for _, product := range filteredInstalledProducts {
 		installedProductFilePaths = append(installedProductFilePaths, product.filePath)
 	}
 	log.Debug().Msgf("trying to get release tags from installed products: %v", installedProductFilePaths)
-	// TODO: Use only product certificate that matches current release of Linux distribution.
-	//       E.g.: When current major release is RHEL 11, use only product certificate
-	//       that contains tags for RHEL 11
+
 	requiredTags := createListOfContentTags(installedProducts)
 	return requiredTags, nil
 }
