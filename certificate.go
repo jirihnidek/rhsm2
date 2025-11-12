@@ -2,8 +2,9 @@ package rhsm2
 
 import (
 	"fmt"
-	"github.com/rs/zerolog/log"
 	"os"
+
+	"github.com/rs/zerolog/log"
 )
 
 // writePemFile Tries to write content of PEM (cert or key) to file.
@@ -28,10 +29,6 @@ func writePemFile(filePath *string, pemFileContent *string, mode *os.FileMode) e
 	// Print content of cert using Fprint(), because
 	// the string contains formatting sequences like \n
 	_, err = fmt.Fprint(file, *pemFileContent)
-
-	if err != nil {
-		return err
-	}
 
 	if err != nil {
 		return err

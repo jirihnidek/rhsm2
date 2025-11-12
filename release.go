@@ -209,14 +209,111 @@ func (rhsmClient *RHSMClient) getListingFile(listingPath string) (*string, error
 	return respBody, nil
 }
 
+const DefaultDnfVarsDirPath = "/etc/dnf/vars/"
+const DefaultDnfVarsReleaseFilePath = DefaultDnfVarsDirPath + "releasever"
+
+// setDnfVarsRelease tries to set the release only on the host in the variable file /etc/dnf/vars/releasever.
+func (rhsmClient *RHSMClient) setDnfVarsRelease(release string) error {
+	dnfVarsDirPath := filepath.Dir(rhsmClient.RHSMConf.dnfVarsReleaseFilePath)
+	err := os.MkdirAll(dnfVarsDirPath, 0755)
+	if err != nil {
+		return fmt.Errorf("unable to create directory %s: %s", dnfVarsDirPath, err)
+	}
+
+	releaseFile, err := os.Create(rhsmClient.RHSMConf.dnfVarsReleaseFilePath)
+	if err != nil {
+		return fmt.Errorf("unable to create file %s: %s", rhsmClient.RHSMConf.dnfVarsReleaseFilePath, err)
+	}
+
+	defer func(releaseFile *os.File) {
+		err := releaseFile.Close()
+		if err != nil {
+			log.Warn().Msgf("unable to close file: %s", err)
+		}
+	}(releaseFile)
+	_, err = releaseFile.WriteString(release)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// SetRelease tries to set the release on the host in the variable file /etc/dnf/vars/releasever.
+// It also tries to set the release on the candlepin server. The set release on the server is done
+// asynchronously.
+func (rhsmClient *RHSMClient) SetRelease(release string) error {
+	err := rhsmClient.setDnfVarsRelease(release)
+	if err != nil {
+		return err
+	}
+	go func() {
+		err := rhsmClient.setReleaseOnServer(nil, release)
+		if err != nil {
+			log.Warn().Msgf("unable to set release on server: %s", err)
+		}
+	}()
+	return nil
+}
+
+// unsetDnfVarsRelease tries to unset the release on the host in the variable file /etc/dnf/vars/releasever
+// ny removing the file. If it is not possible to remove the file, it returns an error.
+func (rhsmClient *RHSMClient) unsetDnfVarsRelease() error {
+	if _, err := os.Stat(rhsmClient.RHSMConf.dnfVarsReleaseFilePath); os.IsNotExist(err) {
+		return nil
+	}
+	err := os.Remove(rhsmClient.RHSMConf.dnfVarsReleaseFilePath)
+	if err != nil {
+		return fmt.Errorf("unable to remove file %s: %s", rhsmClient.RHSMConf.dnfVarsReleaseFilePath, err)
+	}
+	return nil
+}
+
+// UnsetRelease tries to unset the release on the host in the variable file /etc/dnf/vars/releasever.
+// It also tries to unset the release on the candlepin server. The unset release on the server is done
+// asynchronously.
+func (rhsmClient *RHSMClient) UnsetRelease() error {
+	err := rhsmClient.unsetDnfVarsRelease()
+	if err != nil {
+		return err
+	}
+	go func() {
+		err := rhsmClient.setReleaseOnServer(nil, "")
+		if err != nil {
+			log.Warn().Msgf("unable to unset release on server: %s", err)
+		}
+	}()
+	return nil
+}
+
+// GetDnfVarsRelease tries to get the release from the host in the variable file /etc/dnf/vars/releasever.
+// If the file does not exist, it returns an empty string and error.
+func (rhsmClient *RHSMClient) GetDnfVarsRelease() (string, error) {
+	releaseFile, err := os.Open(rhsmClient.RHSMConf.dnfVarsReleaseFilePath)
+	if err != nil {
+		return "", fmt.Errorf("unable to open file %s: %s", rhsmClient.RHSMConf.dnfVarsReleaseFilePath, err)
+	}
+	defer func(releaseFile *os.File) {
+		err := releaseFile.Close()
+		if err != nil {
+			log.Warn().Msgf("unable to close file: %s", err)
+		}
+	}(releaseFile)
+	release, err := os.ReadFile(rhsmClient.RHSMConf.dnfVarsReleaseFilePath)
+	if err != nil {
+		return "", fmt.Errorf("unable to read file %s: %s", rhsmClient.RHSMConf.dnfVarsReleaseFilePath, err)
+	}
+	return string(release), nil
+}
+
 // Release represents the release object returned from candlepin server
 type Release struct {
 	ReleaseVer string `json:"releaseVer"`
 }
 
-// SetReleaseOnServer tries to set the release on the candlepin server only (not on the host in the variable
+// setReleaseOnServer tries to set the release on the candlepin server only (not on the host in the variable
 // file in /etc/dnf/vars/).
-func (rhsmClient *RHSMClient) SetReleaseOnServer(clientInfo *ClientInfo, release string) error {
+func (rhsmClient *RHSMClient) setReleaseOnServer(clientInfo *ClientInfo, release string) error {
 	consumerUuid, err := rhsmClient.GetConsumerUUID()
 
 	if err != nil {
