@@ -85,17 +85,18 @@ func copyFile(srcFilePath *string, dstFilePath *string, perm *os.FileMode) error
 // TestingFileSystem is structure holding information about file paths
 // used for testing
 type TestingFileSystem struct {
-	EtcDirPath            string
-	OsReleaseFilePath     string
-	CACertDirPath         string
-	ConsumerDirPath       string
-	EntitlementDirPath    string
-	ProductDirPath        string
-	ProductDefaultDirPath string
-	SyspurposeDirPath     string
-	SyspurposeFilePath    string
-	YumReposDirPath       string
-	YumRepoFilePath       string
+	EtcDirPath             string
+	OsReleaseFilePath      string
+	DnfVarsReleaseFilePath string
+	CACertDirPath          string
+	ConsumerDirPath        string
+	EntitlementDirPath     string
+	ProductDirPath         string
+	ProductDefaultDirPath  string
+	SyspurposeDirPath      string
+	SyspurposeFilePath     string
+	YumReposDirPath        string
+	YumRepoFilePath        string
 }
 
 // setupTestingFiles tries to copy and generate testing files to testing directories
@@ -222,6 +223,9 @@ func setupTestingDirectories(tempDirFilePath string, perm os.FileMode) (*Testing
 		return nil, err
 	}
 	testingFileSystem.EtcDirPath = *etcDirPath
+
+	// Set the file path for release dnf variable file
+	testingFileSystem.DnfVarsReleaseFilePath = filepath.Join(testingFileSystem.EtcDirPath, "dnf", "vars", "release")
 
 	// Create temporary directory for CA certificate
 	caCertDirPath, err := createDirectory(tempDirFilePath, "etc/rhsm/ca", perm)
@@ -369,9 +373,10 @@ func setupTestingRHSMClient(testingFiles *TestingFileSystem, server *httptest.Se
 
 	// Fill rhsm conf with fake data and temporary paths
 	rhsmClient.RHSMConf = &RHSMConf{
-		yumRepoFilePath:    testingFiles.YumRepoFilePath,
-		syspurposeFilePath: testingFiles.SyspurposeFilePath,
-		osReleaseFilePath:  testingFiles.OsReleaseFilePath,
+		yumRepoFilePath:        testingFiles.YumRepoFilePath,
+		syspurposeFilePath:     testingFiles.SyspurposeFilePath,
+		osReleaseFilePath:      testingFiles.OsReleaseFilePath,
+		dnfVarsReleaseFilePath: testingFiles.DnfVarsReleaseFilePath,
 		RHSM: RHSMConfRHSM{
 			ConsumerCertDir:       testingFiles.ConsumerDirPath,
 			EntitlementCertDir:    testingFiles.EntitlementDirPath,

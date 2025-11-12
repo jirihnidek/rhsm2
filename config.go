@@ -77,6 +77,9 @@ type RHSMConf struct {
 	// yumRepoFilePath is the file path of the redhat.repo file
 	yumRepoFilePath string
 
+	// dnfVarsReleaseFilePath specifies the file path to the release version information for DNF variables.
+	dnfVarsReleaseFilePath string
+
 	// syspurposeFilePath is the file path of the syspurpose.json file
 	syspurposeFilePath string
 
@@ -180,10 +183,11 @@ func IsValueAllowed(value *reflect.Value, allowedValues *string) (bool, error) {
 // RHSMConf structure
 func LoadRHSMConf(confFilePath string) (*RHSMConf, error) {
 	rhsmConf := &RHSMConf{
-		filePath:           confFilePath,
-		yumRepoFilePath:    DefaultRepoFilePath,
-		syspurposeFilePath: DefaultSystemPurposeFilePath,
-		osReleaseFilePath:  DefaultOsReleaseFilePath,
+		filePath:               confFilePath,
+		yumRepoFilePath:        DefaultRepoFilePath,
+		dnfVarsReleaseFilePath: DefaultDnfVarsReleaseFilePath,
+		syspurposeFilePath:     DefaultSystemPurposeFilePath,
+		osReleaseFilePath:      DefaultOsReleaseFilePath,
 	}
 
 	err := rhsmConf.load()

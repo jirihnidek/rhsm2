@@ -3,6 +3,8 @@ package rhsm2
 import (
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -656,10 +658,10 @@ func Test_SetReleaseOnServer(t *testing.T) {
 				t.Fatalf("unable to setup testing rhsm client: %s", err)
 			}
 
-			err = rhsmClient.SetReleaseOnServer(nil, tt.releaseVer)
+			err = rhsmClient.setReleaseOnServer(nil, tt.releaseVer)
 
 			if (err != nil) != tt.wantErr {
-				t.Errorf("%s: SetReleaseOnServer() error = %v, wantErr %v", tt.name, err, tt.wantErr)
+				t.Errorf("%s: setReleaseOnServer() error = %v, wantErr %v", tt.name, err, tt.wantErr)
 				return
 			}
 		})
@@ -750,9 +752,77 @@ func Test_SetReleaseOnServerUnregistered(t *testing.T) {
 		t.Fatalf("unable to setup testing rhsm client: %s", err)
 	}
 
-	err = rhsmClient.SetReleaseOnServer(nil, "10.1")
+	err = rhsmClient.setReleaseOnServer(nil, "10.1")
 	if err == nil {
 		t.Fatal("expected error when setting release on unregistered system")
+	}
+}
+
+func Test_SetDnfVarsRelease(t *testing.T) {
+	tests := []struct {
+		name         string
+		releaseVer   string
+		setupFiles   bool
+		wantErr      bool
+		expectedFile string
+	}{
+		{
+			name:         "successful set release with major and minor version",
+			releaseVer:   "11.1",
+			wantErr:      false,
+			expectedFile: "11.1",
+		},
+		{
+			name:         "successful set release with major version",
+			releaseVer:   "43",
+			wantErr:      false,
+			expectedFile: "43",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tempDirFilePath := t.TempDir()
+
+			testingFiles, err := setupTestingFileSystem(
+				tempDirFilePath,
+				true,
+				true,
+				true,
+				true,
+				true,
+			)
+			if err != nil {
+				t.Fatalf("unable to setup testing environment: %s", err)
+			}
+
+			rhsmClient, err := setupTestingRHSMClient(testingFiles, nil, nil)
+			if err != nil {
+				t.Fatalf("unable to setup testing rhsm client: %s", err)
+			}
+
+			err = rhsmClient.setDnfVarsRelease(tt.releaseVer)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("SetReleaseOnHost() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+
+			if !tt.wantErr {
+				// Try to read the content of the release version file
+				content, err := os.ReadFile(testingFiles.DnfVarsReleaseFilePath)
+				if err != nil {
+					if tt.expectedFile != "" {
+						t.Errorf("unable to read release version file: %s", err)
+					}
+				} else {
+					gotContent := string(content)
+					if gotContent != tt.expectedFile {
+						t.Errorf("unexpected content of release version file: got %s, want %s",
+							gotContent, tt.expectedFile)
+					}
+				}
+			}
+		})
 	}
 }
 
@@ -853,6 +923,334 @@ func Test_GetReleaseFromServer(t *testing.T) {
 			}
 			if release != tt.wantRelease {
 				t.Errorf("%s: GetReleaseFromServer() = %v, want %v", tt.name, release, tt.wantRelease)
+			}
+		})
+	}
+}
+
+func Test_UnsetRelease(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name           string
+		setupFiles     bool
+		setupHTTP      bool
+		statusCode     int
+		serverResponse string
+		wantErr        bool
+	}{
+		{
+			name:           "successful unset on registered system",
+			setupFiles:     true,
+			setupHTTP:      true,
+			statusCode:     204,
+			serverResponse: ``,
+			wantErr:        false,
+		},
+		{
+			name:       "unset on unregistered system",
+			setupFiles: false,
+			setupHTTP:  false,
+			wantErr:    false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var server *httptest.Server
+			if tt.setupHTTP {
+				server = httptest.NewTLSServer(
+					http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
+						if !tt.setupHTTP {
+							t.Fatalf("No REST API call needed when system is not registered: %s %s",
+								req.Method, req.URL.Path)
+						}
+						if req.Method != http.MethodPut {
+							t.Fatalf("unexpected HTTP method: %s", req.Method)
+						}
+						rw.WriteHeader(tt.statusCode)
+						_, _ = rw.Write([]byte(tt.serverResponse))
+					}))
+				defer server.Close()
+			}
+
+			tempDirFilePath := t.TempDir()
+
+			testingFiles, err := setupTestingFileSystem(
+				tempDirFilePath,
+				tt.setupFiles,
+				tt.setupFiles,
+				tt.setupFiles,
+				tt.setupFiles,
+				tt.setupFiles,
+			)
+			if err != nil {
+				t.Fatalf("unable to setup testing environment: %s", err)
+			}
+
+			// Create a test release file on registered and unregistered systems
+			dnfVarsDirPath := filepath.Dir(testingFiles.DnfVarsReleaseFilePath)
+			err = os.MkdirAll(dnfVarsDirPath, 0755)
+			if err != nil {
+				t.Fatalf("unable to create directory %s: %s", dnfVarsDirPath, err)
+			}
+			err = os.WriteFile(testingFiles.DnfVarsReleaseFilePath, []byte("11.6"), 0644)
+			if err != nil {
+				t.Fatalf("unable to create test release file: %s", err)
+			}
+
+			rhsmClient, err := setupTestingRHSMClient(testingFiles, server, nil)
+			if err != nil {
+				t.Fatalf("unable to setup testing rhsm client: %s", err)
+			}
+
+			err = rhsmClient.UnsetRelease()
+			if (err != nil) != tt.wantErr {
+				t.Errorf("%s: UnsetRelease() error = %v, wantErr %v", tt.name, err, tt.wantErr)
+				return
+			}
+
+			// The file should have been removed on registered and unregistered systems
+			_, err = os.Stat(testingFiles.DnfVarsReleaseFilePath)
+			if !os.IsNotExist(err) {
+				t.Error("DNF vars release file should have been removed")
+			}
+		})
+	}
+}
+
+func Test_SetRelease(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name           string
+		releaseVer     string
+		setupFiles     bool
+		setupHTTP      bool
+		statusCode     int
+		serverResponse string
+		wantErr        bool
+	}{
+		{
+			name:           "successful set on registered system",
+			releaseVer:     "11.5",
+			setupFiles:     true,
+			setupHTTP:      true,
+			statusCode:     204,
+			serverResponse: ``,
+			wantErr:        false,
+		},
+		{
+			name:           "server error on registered system",
+			releaseVer:     "11.5",
+			setupFiles:     true,
+			setupHTTP:      true,
+			statusCode:     500,
+			serverResponse: "Internal Server Error",
+			wantErr:        false,
+		},
+		{
+			name:       "set on unregistered system",
+			releaseVer: "11.5",
+			setupFiles: false,
+			setupHTTP:  false,
+			wantErr:    false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var server *httptest.Server
+			if tt.setupHTTP {
+				server = httptest.NewTLSServer(
+					http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
+						if !tt.setupHTTP {
+							t.Fatalf("No REST API call needed when system is not registered: %s %s",
+								req.Method, req.URL.Path)
+						}
+						if req.Method != http.MethodPut {
+							t.Fatalf("unexpected HTTP method: %s", req.Method)
+						}
+						rw.WriteHeader(tt.statusCode)
+						_, _ = rw.Write([]byte(tt.serverResponse))
+					}))
+				defer server.Close()
+			}
+
+			tempDirFilePath := t.TempDir()
+
+			testingFiles, err := setupTestingFileSystem(
+				tempDirFilePath,
+				tt.setupFiles,
+				tt.setupFiles,
+				tt.setupFiles,
+				tt.setupFiles,
+				tt.setupFiles,
+			)
+			if err != nil {
+				t.Fatalf("unable to setup testing environment: %s", err)
+			}
+
+			rhsmClient, err := setupTestingRHSMClient(testingFiles, server, nil)
+			if err != nil {
+				t.Fatalf("unable to setup testing rhsm client: %s", err)
+			}
+
+			err = rhsmClient.SetRelease(tt.releaseVer)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("SetRelease() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+
+			if !tt.wantErr {
+				content, err := os.ReadFile(testingFiles.DnfVarsReleaseFilePath)
+				if err != nil {
+					t.Errorf("unable to read release version file: %s", err)
+					return
+				}
+				gotContent := string(content)
+				if gotContent != tt.releaseVer {
+					t.Errorf("unexpected content of release version file: got %s, want %s",
+						gotContent, tt.releaseVer)
+				}
+			}
+		})
+	}
+}
+
+func Test_UnsetDnfVarsRelease(t *testing.T) {
+	tests := []struct {
+		name       string
+		setupFile  bool
+		wantErr    bool
+		fileExists bool
+	}{
+		{
+			name:       "successful unset of existing file",
+			setupFile:  true,
+			wantErr:    false,
+			fileExists: false,
+		},
+		{
+			name:       "unset when file does not exist",
+			setupFile:  false,
+			wantErr:    false,
+			fileExists: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tempDirFilePath := t.TempDir()
+
+			testingFiles, err := setupTestingFileSystem(
+				tempDirFilePath,
+				true,
+				true,
+				true,
+				true,
+				true,
+			)
+			if err != nil {
+				t.Fatalf("unable to setup testing environment: %s", err)
+			}
+
+			if tt.setupFile {
+				dnfVarsDirPath := filepath.Dir(testingFiles.DnfVarsReleaseFilePath)
+				err := os.MkdirAll(dnfVarsDirPath, 0755)
+				if err != nil {
+					t.Fatalf("unable to create directory %s: %s", dnfVarsDirPath, err)
+				}
+				err = os.WriteFile(testingFiles.DnfVarsReleaseFilePath, []byte("11.6"), 0644)
+				if err != nil {
+					t.Fatalf("unable to create test release file: %s", err)
+				}
+			}
+
+			rhsmClient, err := setupTestingRHSMClient(testingFiles, nil, nil)
+			if err != nil {
+				t.Fatalf("unable to setup testing rhsm client: %s", err)
+			}
+
+			err = rhsmClient.unsetDnfVarsRelease()
+			if (err != nil) != tt.wantErr {
+				t.Errorf("unsetDnfVarsRelease() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+
+			_, err = os.Stat(testingFiles.DnfVarsReleaseFilePath)
+			fileExists := !os.IsNotExist(err)
+			if fileExists != tt.fileExists {
+				t.Errorf("File exists = %v, want %v", fileExists, tt.fileExists)
+			}
+		})
+	}
+}
+
+func Test_GetDnfVarsRelease(t *testing.T) {
+	tests := []struct {
+		name      string
+		setupFile bool
+		content   string
+		want      string
+		wantErr   bool
+	}{
+		{
+			name:      "successful read of existing file",
+			setupFile: true,
+			content:   "11.6",
+			want:      "11.6",
+			wantErr:   false,
+		},
+		{
+			name:      "read when file does not exist",
+			setupFile: false,
+			content:   "",
+			want:      "",
+			wantErr:   true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tempDirFilePath := t.TempDir()
+
+			testingFiles, err := setupTestingFileSystem(
+				tempDirFilePath,
+				true,
+				true,
+				true,
+				true,
+				true,
+			)
+			if err != nil {
+				t.Fatalf("unable to setup testing environment: %s", err)
+			}
+
+			if tt.setupFile {
+				dnfVarsDirPath := filepath.Dir(testingFiles.DnfVarsReleaseFilePath)
+				err := os.MkdirAll(dnfVarsDirPath, 0755)
+				if err != nil {
+					t.Fatalf("unable to create directory %s: %s", dnfVarsDirPath, err)
+				}
+				err = os.WriteFile(testingFiles.DnfVarsReleaseFilePath, []byte(tt.content), 0644)
+				if err != nil {
+					t.Fatalf("unable to create test release file: %s", err)
+				}
+			}
+
+			rhsmClient, err := setupTestingRHSMClient(testingFiles, nil, nil)
+			if err != nil {
+				t.Fatalf("unable to setup testing rhsm client: %s", err)
+			}
+
+			got, err := rhsmClient.GetDnfVarsRelease()
+			if (err != nil) != tt.wantErr {
+				t.Errorf("GetDnfVarsRelease() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if got != tt.want {
+				t.Errorf("GetDnfVarsRelease() = %v, want %v", got, tt.want)
 			}
 		})
 	}
