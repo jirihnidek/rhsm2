@@ -9,7 +9,7 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/henvic/httpretty v0.1.4
 	github.com/jeandeaual/go-locale v0.0.0-20250421151639-a9d6ed1b3d45
-	github.com/rs/zerolog v1.34.0
+	github.com/rs/zerolog v1.35.1
 	gopkg.in/ini.v1 v1.67.0
 )
 
