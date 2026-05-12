@@ -3,12 +3,18 @@ package rhsm2
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/rs/zerolog/log"
 	"net/http"
+
+	"github.com/rs/zerolog/log"
+	"gopkg.in/ini.v1"
 )
 
-// ContentOverride is structure containing information about content
-// override for given repository
+const dnf5ReposOverrideDirPath = "/etc/dnf/repos.override.d"
+const dnf5ReposOverrideFileName = "98-redhat.repo"
+const dnf5RedHatReposOverrideFilePath = dnf5ReposOverrideDirPath + "/" + dnf5ReposOverrideFileName
+
+// ContentOverride is a structure containing information about content
+// override for a given repository
 type ContentOverride struct {
 	Created      string `json:"created"`
 	Updated      string `json:"updated"`
@@ -66,7 +72,74 @@ func (rhsmClient *RHSMClient) getContentOverrides(info *ClientInfo) ([]ContentOv
 	return contentOverrides, nil
 }
 
-// createMapFromContentOverrides creates map with content overrides from list of
+// readContentOverridesFromDnf5RepoOverride tries to read content overrides from dnf5 repo override file
+// We try to read repo overrides using ini package. Hopefully, it will work without any issue.
+func readContentOverridesFromDnf5RepoOverride(filePath string) (map[string]map[string]string, error) {
+	repo, err := ini.Load(filePath)
+	if err != nil {
+		return nil, err
+	}
+
+	result := make(map[string]map[string]string)
+	for _, section := range repo.Sections() {
+		// Skip the DEFAULT section added by ini package
+		if section.Name() == ini.DefaultSection {
+			continue
+		}
+		sectionMap := make(map[string]string)
+		for _, key := range section.Keys() {
+			sectionMap[key.Name()] = key.Value()
+		}
+		result[section.Name()] = sectionMap
+	}
+	return result, nil
+}
+
+// writeContentOverridesToDnf5RepoOverride tries to write content overrides to dnf5 repo override file
+func writeContentOverridesToDnf5RepoOverride(contentOverrides []ContentOverride, filePath string) error {
+	// First, create empty ini file object
+	repo := ini.Empty()
+
+	// Convert the list of content overrides to a map
+	mapContentOverrides := createMapFromContentOverrides(contentOverrides)
+
+	// Fill ini file (repo file) with repo override from the map
+	for contentLabel, contentOverrideMap := range mapContentOverrides {
+		var section *ini.Section
+		var err error
+
+		if repo.HasSection(contentLabel) {
+			section = repo.Section(contentLabel)
+		} else {
+			section, err = repo.NewSection(contentLabel)
+			if err != nil {
+				return err
+			}
+		}
+		for contentName, contentValue := range contentOverrideMap {
+			var key *ini.Key
+			if section.HasKey(contentName) {
+				key = section.Key(contentName)
+			} else {
+				key, err = section.NewKey(contentName, contentValue)
+				if err != nil {
+					return err
+				}
+			}
+			key.SetValue(contentValue)
+		}
+	}
+
+	// Write repo override to the file
+	err := repo.SaveTo(filePath)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// createMapFromContentOverrides creates the map with content overrides from the list of
 // content overrides returned from candlepin server
 func createMapFromContentOverrides(contentOverrides []ContentOverride) map[string]map[string]string {
 	mapContentOverrides := make(map[string]map[string]string)
