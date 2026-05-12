@@ -3,8 +3,9 @@ package rhsm2
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/rs/zerolog/log"
 	"net/http"
+
+	"github.com/rs/zerolog/log"
 )
 
 // RHSMEndPoints is structure used for storing GET response from
@@ -28,7 +29,10 @@ func (rhsmClient *RHSMClient) GetServerEndpoints(clientInfo *ClientInfo) (*[]RHS
 
 	_, err := rhsmClient.GetConsumerUUID()
 	if err == nil {
-		connection = rhsmClient.ConsumerCertAuthConnection
+		connection, err = rhsmClient.getCertAuthConnection()
+		if err != nil {
+			return nil, fmt.Errorf("unable to get consumer cert auth connection: %v", err)
+		}
 	} else {
 		// When no consumer has been installed, then we will
 		// try to use no-auth connection. When server is available,
@@ -110,7 +114,10 @@ func (rhsmClient *RHSMClient) GetServerStatus(clientInfo *ClientInfo) (*RHSMStat
 
 	_, err := rhsmClient.GetConsumerUUID()
 	if err == nil {
-		connection = rhsmClient.ConsumerCertAuthConnection
+		connection, err = rhsmClient.getCertAuthConnection()
+		if err != nil {
+			return nil, fmt.Errorf("unable to get consumer cert auth connection: %v", err)
+		}
 	} else {
 		// When no consumer has been installed, then we will
 		// try to use no-auth connection. When server is available,

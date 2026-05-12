@@ -409,7 +409,7 @@ func setupTestingRHSMClient(testingFiles *TestingFileSystem, server *httptest.Se
 			ServerPort:     &port,
 			ServerPrefix:   &prefix,
 		}
-		rhsmClient.ConsumerCertAuthConnection = &RHSMConnection{
+		rhsmClient.consumerCertAuthConnection = &RHSMConnection{
 			AuthType:       ConsumerCertAuth,
 			Client:         server.Client(),
 			ServerHostname: &hostname,

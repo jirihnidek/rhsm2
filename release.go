@@ -336,7 +336,11 @@ func (rhsmClient *RHSMClient) setReleaseOnServer(clientInfo *ClientInfo, release
 		return err
 	}
 
-	res, err := rhsmClient.ConsumerCertAuthConnection.request(
+	connection, err := rhsmClient.getCertAuthConnection()
+	if err != nil {
+		return fmt.Errorf("unable to get consumer cert auth connection: %v", err)
+	}
+	res, err := connection.request(
 		http.MethodPut,
 		"consumers/"+*consumerUuid,
 		"",
@@ -372,7 +376,11 @@ func (rhsmClient *RHSMClient) GetReleaseFromServer(clientInfo *ClientInfo) (stri
 	}
 	clientInfo.xCorrelationId = createCorrelationId()
 
-	res, err := rhsmClient.ConsumerCertAuthConnection.request(
+	connection, err := rhsmClient.getCertAuthConnection()
+	if err != nil {
+		return "", fmt.Errorf("unable to get consumer cert auth connection: %v", err)
+	}
+	res, err := connection.request(
 		http.MethodGet,
 		"consumers/"+*consumerUuid+"/release",
 		"",
