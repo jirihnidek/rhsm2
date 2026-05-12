@@ -28,7 +28,7 @@ func TestCreateRHSMClient(t *testing.T) {
 			t.Fatal("no-auth connection has not been created")
 		}
 
-		if rhsmClient.ConsumerCertAuthConnection == nil {
+		if rhsmClient.consumerCertAuthConnection == nil {
 			t.Fatal("consumer cert auth connection has not been created")
 		}
 	}

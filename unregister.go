@@ -3,11 +3,12 @@ package rhsm2
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/rs/zerolog/log"
 	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/rs/zerolog/log"
 )
 
 // UnregisterServerError is structure representing error
@@ -123,7 +124,11 @@ func (rhsmClient *RHSMClient) Unregister(clientInfo *ClientInfo) error {
 	}
 	clientInfo.xCorrelationId = createCorrelationId()
 
-	res, err := rhsmClient.ConsumerCertAuthConnection.request(
+	connection, err := rhsmClient.getCertAuthConnection()
+	if err != nil {
+		return fmt.Errorf("unable to get consumer cert auth connection: %v", err)
+	}
+	res, err := connection.request(
 		http.MethodDelete,
 		"consumers/"+*consumerUuid,
 		"",

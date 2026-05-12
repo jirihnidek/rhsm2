@@ -35,7 +35,11 @@ func (rhsmClient *RHSMClient) getContentOverrides(info *ClientInfo) ([]ContentOv
 
 	var headers = make(map[string]string)
 
-	res, err := rhsmClient.ConsumerCertAuthConnection.request(
+	connection, err := rhsmClient.getCertAuthConnection()
+	if err != nil {
+		return nil, fmt.Errorf("unable to get consumer cert auth connection: %v", err)
+	}
+	res, err := connection.request(
 		http.MethodGet,
 		"consumers/"+*consumerUuid+"/content_overrides",
 		"",
