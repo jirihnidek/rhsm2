@@ -3,7 +3,9 @@ package rhsm2
 import (
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"reflect"
+	"strings"
 	"testing"
 )
 
@@ -310,6 +312,227 @@ func Test_createMapFromContentOverrides(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			if got := createMapFromContentOverrides(tt.args.contentOverrides); !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("createMapFromContentOverrides() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+// Test_writeContentOverridesToDnf5RepoOverride tests writing content overrides to DNF5 repo override file
+func Test_writeContentOverridesToDnf5RepoOverride(t *testing.T) {
+	type args struct {
+		contentOverrides []ContentOverride
+		fileContent      string
+	}
+	tests := []struct {
+		name    string
+		args    args
+		wantErr bool
+	}{
+		{
+			"empty content overrides",
+			args{
+				contentOverrides: []ContentOverride{},
+				fileContent:      "",
+			},
+			false,
+		},
+		{
+			"single content override",
+			args{
+				contentOverrides: []ContentOverride{
+					{
+						ContentLabel: "awesome-os-801",
+						Created:      "2023-10-23T11:54:30+0000",
+						Updated:      "2023-11-23T11:54:30+0000",
+						Name:         "enabled",
+						Value:        "1",
+					},
+				},
+				fileContent: "[awesome-os-801]\n" +
+					"enabled = 1",
+			},
+			false,
+		},
+		{
+			"two content overrides for the same repo",
+			args{
+				contentOverrides: []ContentOverride{
+					{
+						ContentLabel: "awesome-os-801",
+						Created:      "2023-10-23T11:54:30+0000",
+						Updated:      "2023-11-23T11:54:30+0000",
+						Name:         "enabled",
+						Value:        "1",
+					},
+					{
+						ContentLabel: "awesome-os-801",
+						Created:      "2023-10-23T11:54:30+0000",
+						Updated:      "2023-11-23T11:54:30+0000",
+						Name:         "gpgcheck",
+						Value:        "0",
+					},
+				},
+				fileContent: "[awesome-os-801]\n" +
+					"enabled  = 1\n" +
+					"gpgcheck = 0",
+			},
+			false,
+		},
+		{
+			"two content overrides for two repos",
+			args{
+				contentOverrides: []ContentOverride{
+					{
+						ContentLabel: "awesome-os-801",
+						Created:      "2023-10-23T11:54:30+0000",
+						Updated:      "2023-11-23T11:54:30+0000",
+						Name:         "enabled",
+						Value:        "1",
+					},
+					{
+						ContentLabel: "cool-os-801",
+						Created:      "2023-10-23T11:54:30+0000",
+						Updated:      "2023-11-23T11:54:30+0000",
+						Name:         "gpgcheck",
+						Value:        "0",
+					},
+				},
+				fileContent: "[awesome-os-801]\n" +
+					"enabled = 1\n" +
+					"\n" +
+					"[cool-os-801]\n" +
+					"gpgcheck = 0",
+			},
+			false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Create temporary directory for test
+			tempDir := t.TempDir()
+			filePath := tempDir + "/repo_overrides.toml"
+
+			err := writeContentOverridesToDnf5RepoOverride(tt.args.contentOverrides, filePath)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("writeContentOverridesToDnf5RepoOverride() error = %v, wantErr %v", err, tt.wantErr)
+			}
+
+			// Read the content of the file
+			fileBytes, err := os.ReadFile(filePath)
+			if err != nil && !tt.wantErr {
+				t.Errorf("failed to read file %s: %v", filePath, err)
+			}
+
+			// Compare the file content with expected content
+			fileContent := strings.TrimSpace(string(fileBytes))
+			expectedContent := strings.TrimSpace(tt.args.fileContent)
+			if fileContent != expectedContent {
+				t.Errorf("file content mismatch:\ngot:\n%s\n\nwant:\n%s", fileContent, expectedContent)
+			}
+
+		})
+	}
+}
+
+// Test_readContentOverridesFromDnf5RepoOverride tests reading content overrides from DNF5 repo override file
+func Test_readContentOverridesFromDnf5RepoOverride(t *testing.T) {
+	type args struct {
+		fileContent string
+	}
+	tests := []struct {
+		name    string
+		args    args
+		want    map[string]map[string]string
+		wantErr bool
+	}{
+		{
+			"empty file",
+			args{
+				fileContent: "",
+			},
+			make(map[string]map[string]string),
+			false,
+		},
+		{
+			"single content override",
+			args{
+				fileContent: "[awesome-os-801]\n" +
+					"enabled = 1",
+			},
+			map[string]map[string]string{"awesome-os-801": {"enabled": "1"}},
+			false,
+		},
+		{
+			"two content overrides for the same repo",
+			args{
+				fileContent: "[awesome-os-801]\n" +
+					"enabled  = 1\n" +
+					"gpgcheck = 0",
+			},
+			map[string]map[string]string{"awesome-os-801": {"enabled": "1", "gpgcheck": "0"}},
+			false,
+		},
+		{
+			"two content overrides for two repos",
+			args{
+				fileContent: "[awesome-os-801]\n" +
+					"enabled = 1\n" +
+					"\n" +
+					"[cool-os-801]\n" +
+					"gpgcheck = 0",
+			},
+			map[string]map[string]string{
+				"awesome-os-801": {"enabled": "1"},
+				"cool-os-801":    {"gpgcheck": "0"},
+			},
+			false,
+		},
+		{
+			"file with comments",
+			args{
+				fileContent: "# This is a comment\n" +
+					"[awesome-os-801]\n" +
+					"enabled = 1",
+			},
+			map[string]map[string]string{"awesome-os-801": {"enabled": "1"}},
+			false,
+		},
+		{
+			"non-existent file",
+			args{
+				fileContent: "",
+			},
+			nil,
+			true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Create temporary directory for test
+			tempDir := t.TempDir()
+			filePath := tempDir + "/repo_overrides.toml"
+
+			// For non-existent file test, don't create the file
+			if tt.name != "non-existent file" {
+				// Write test content to file
+				err := os.WriteFile(filePath, []byte(tt.args.fileContent), 0644)
+				if err != nil {
+					t.Fatalf("failed to write test file: %v", err)
+				}
+			}
+
+			// For non-existent file test, use a path that doesn't exist
+			if tt.name == "non-existent file" {
+				filePath = tempDir + "/non_existent.toml"
+			}
+
+			got, err := readContentOverridesFromDnf5RepoOverride(filePath)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("readContentOverridesFromDnf5RepoOverride() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("readContentOverridesFromDnf5RepoOverride() = %v, want %v", got, tt.want)
 			}
 		})
 	}

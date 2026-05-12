@@ -65,7 +65,6 @@ type EntitlementContentJSON struct {
 // writeRepoFile tries to write map of products to repo file
 func (rhsmClient *RHSMClient) writeRepoFile(
 	productsMap map[int64][]EngineeringProduct,
-	contentOverrides map[string]map[string]string,
 ) error {
 	file := ini.Empty()
 
@@ -134,17 +133,6 @@ func (rhsmClient *RHSMClient) writeRepoFile(
 
 				// sslverifystatus
 				_, _ = section.NewKey("sslverifystatus", "1")
-
-				// Apply content overrides
-				if override, exists := contentOverrides[content.Name]; exists {
-					for key, value := range override {
-						_, err := section.NewKey(key, value)
-						if err != nil {
-							log.Error().Msgf("unable to apply content override for repository: %s", content.Name)
-							log.Error().Msgf("unable to add value: %v for key: %s: %s", value, key, err)
-						}
-					}
-				}
 			}
 		}
 	}
@@ -197,15 +185,13 @@ func (rhsmClient *RHSMClient) getEngineeringProducts() (map[int64][]EngineeringP
 
 // generateRepoFileFromInstalledEntitlementCerts tries to generate redhat.repo file
 // from installed entitlement certificate(s) and content overrides
-func (rhsmClient *RHSMClient) generateRepoFileFromInstalledEntitlementCerts(
-	contentOverrides map[string]map[string]string,
-) error {
+func (rhsmClient *RHSMClient) generateRepoFileFromInstalledEntitlementCerts() error {
 	engineeringProductsMap, err := rhsmClient.getEngineeringProducts()
 	if err != nil {
 		return err
 	}
 
-	return rhsmClient.writeRepoFile(engineeringProductsMap, contentOverrides)
+	return rhsmClient.writeRepoFile(engineeringProductsMap)
 }
 
 // getContentFromEntCertFile tries to load entitlement certificate from given file

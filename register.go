@@ -3,13 +3,14 @@ package rhsm2
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/rs/zerolog/log"
 	"io"
 	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
 	"sync"
+
+	"github.com/rs/zerolog/log"
 )
 
 // SystemFacts is collection of system facts necessary during registration
@@ -432,7 +433,6 @@ func (rhsmClient *RHSMClient) enableContent(getContentOverrides bool, info *Clie
 
 	// Create empty maps of products and content overrides for corner cases
 	engineeringProducts := make(map[int64][]EngineeringProduct)
-	contentOverrides := make(map[string]map[string]string)
 
 	// Try to get entitlement certs and keys from channel
 	entCertKeysResult, ok := <-entCertKeysChan
@@ -444,7 +444,7 @@ func (rhsmClient *RHSMClient) enableContent(getContentOverrides bool, info *Clie
 		engineeringProducts = createProductMap(entCertKeysResult.entCertKeyJSONList)
 	}
 
-	// Try to get content overrides from channel
+	// Try to get content overrides from the channel
 	if getContentOverrides {
 		contentOverridesResult, ok := <-contentOverridesChan
 		if ok {
@@ -452,14 +452,20 @@ func (rhsmClient *RHSMClient) enableContent(getContentOverrides bool, info *Clie
 				return contentOverridesResult.err
 			}
 			if len(contentOverridesResult.contentOverridesList) > 0 {
-				contentOverrides = createMapFromContentOverrides(contentOverridesResult.contentOverridesList)
+				err := writeContentOverridesToDnf5RepoOverride(
+					contentOverridesResult.contentOverridesList,
+					dnf5RedHatReposOverrideFilePath,
+				)
+				if err != nil {
+					log.Warn().Msgf("unable to write content overrides to repo file: %s", err)
+				}
 			}
 		}
 	}
 
-	// Write content to redhat.repo file
+	// Write content to the redhat.repo file
 	if len(engineeringProducts) > 0 {
-		err := rhsmClient.writeRepoFile(engineeringProducts, contentOverrides)
+		err := rhsmClient.writeRepoFile(engineeringProducts)
 		if err != nil {
 			return fmt.Errorf("unable to write repo file: %s: %s",
 				rhsmClient.RHSMConf.yumRepoFilePath, err)
