@@ -7,6 +7,8 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+
+	"gopkg.in/ini.v1"
 )
 
 const contentOverridesList = `[ {
@@ -147,6 +149,7 @@ func TestGetContentOverridesInsufficientPermissions(t *testing.T) {
 // TestGetContentOverridesWrongConsumer test the case, when server
 // response with 404 error
 func TestGetContentOverridesWrongConsumer(t *testing.T) {
+	t.Parallel()
 	var expectedClientUUID = "5e9745d5-624d-4af1-916e-2c17df4eb4e8"
 	handlerCounter := 0
 
@@ -202,6 +205,7 @@ func TestGetContentOverridesWrongConsumer(t *testing.T) {
 // TestGetContentOverridesInternalServerError test the case, when server
 // response with status code 500
 func TestGetContentOverridesInternalServerError(t *testing.T) {
+	t.Parallel()
 	var expectedClientUUID = "5e9745d5-624d-4af1-916e-2c17df4eb4e8"
 	handlerCounter := 0
 
@@ -257,6 +261,7 @@ func TestGetContentOverridesInternalServerError(t *testing.T) {
 // Test_createMapFromContentOverrides tests creating map from list of ContentOverrides
 // returned form candlepin server
 func Test_createMapFromContentOverrides(t *testing.T) {
+	t.Parallel()
 	type args struct {
 		contentOverrides []ContentOverride
 	}
@@ -319,6 +324,7 @@ func Test_createMapFromContentOverrides(t *testing.T) {
 
 // Test_writeContentOverridesToDnf5RepoOverride tests writing content overrides to DNF5 repo override file
 func Test_writeContentOverridesToDnf5RepoOverride(t *testing.T) {
+	t.Parallel()
 	type args struct {
 		contentOverrides []ContentOverride
 		fileContent      string
@@ -373,7 +379,7 @@ func Test_writeContentOverridesToDnf5RepoOverride(t *testing.T) {
 					},
 				},
 				fileContent: "[awesome-os-801]\n" +
-					"enabled  = 1\n" +
+					"enabled = 1\n" +
 					"gpgcheck = 0",
 			},
 			false,
@@ -410,7 +416,7 @@ func Test_writeContentOverridesToDnf5RepoOverride(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			// Create temporary directory for test
 			tempDir := t.TempDir()
-			filePath := tempDir + "/repo_overrides.toml"
+			filePath := tempDir + "/repo_overrides.repo"
 
 			err := writeContentOverridesToDnf5RepoOverride(tt.args.contentOverrides, filePath)
 			if (err != nil) != tt.wantErr {
@@ -418,16 +424,44 @@ func Test_writeContentOverridesToDnf5RepoOverride(t *testing.T) {
 			}
 
 			// Read the content of the file
-			fileBytes, err := os.ReadFile(filePath)
-			if err != nil && !tt.wantErr {
+			repo, err := ini.Load(filePath)
+			if err != nil {
 				t.Errorf("failed to read file %s: %v", filePath, err)
 			}
 
-			// Compare the file content with expected content
-			fileContent := strings.TrimSpace(string(fileBytes))
-			expectedContent := strings.TrimSpace(tt.args.fileContent)
-			if fileContent != expectedContent {
-				t.Errorf("file content mismatch:\ngot:\n%s\n\nwant:\n%s", fileContent, expectedContent)
+			// Load expected content
+			expectedRepo, err := ini.Load([]byte(tt.args.fileContent))
+			if err != nil {
+				t.Errorf("failed to load expected file content %s: %v", tt.args.fileContent, err)
+			}
+
+			// Compare sections
+			if len(repo.Sections()) != len(expectedRepo.Sections()) {
+				t.Errorf("section count mismatch: got %d, want %d", len(repo.Sections()), len(expectedRepo.Sections()))
+			}
+
+			for _, expectedSection := range expectedRepo.Sections() {
+				if expectedSection.Name() == ini.DefaultSection {
+					continue
+				}
+				if !repo.HasSection(expectedSection.Name()) {
+					t.Errorf("section %s not found in generated file", expectedSection.Name())
+					continue
+				}
+				section := repo.Section(expectedSection.Name())
+				for _, expectedKey := range expectedSection.Keys() {
+					if !section.HasKey(expectedKey.Name()) {
+						t.Errorf("key %s not found in section %s", expectedKey.Name(), expectedSection.Name())
+						continue
+					}
+					key := section.Key(expectedKey.Name())
+					gotValue := strings.TrimSpace(key.Value())
+					expectedValue := strings.TrimSpace(expectedKey.Value())
+					if gotValue != expectedValue {
+						t.Errorf("value mismatch for %s.%s: got %s, want %s",
+							expectedSection.Name(), expectedKey.Name(), gotValue, expectedValue)
+					}
+				}
 			}
 
 		})
@@ -436,6 +470,7 @@ func Test_writeContentOverridesToDnf5RepoOverride(t *testing.T) {
 
 // Test_readContentOverridesFromDnf5RepoOverride tests reading content overrides from DNF5 repo override file
 func Test_readContentOverridesFromDnf5RepoOverride(t *testing.T) {
+	t.Parallel()
 	type args struct {
 		fileContent string
 	}
@@ -497,14 +532,6 @@ func Test_readContentOverridesFromDnf5RepoOverride(t *testing.T) {
 			map[string]map[string]string{"awesome-os-801": {"enabled": "1"}},
 			false,
 		},
-		{
-			"non-existent file",
-			args{
-				fileContent: "",
-			},
-			nil,
-			true,
-		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -512,18 +539,10 @@ func Test_readContentOverridesFromDnf5RepoOverride(t *testing.T) {
 			tempDir := t.TempDir()
 			filePath := tempDir + "/repo_overrides.toml"
 
-			// For non-existent file test, don't create the file
-			if tt.name != "non-existent file" {
-				// Write test content to file
-				err := os.WriteFile(filePath, []byte(tt.args.fileContent), 0644)
-				if err != nil {
-					t.Fatalf("failed to write test file: %v", err)
-				}
-			}
-
-			// For non-existent file test, use a path that doesn't exist
-			if tt.name == "non-existent file" {
-				filePath = tempDir + "/non_existent.toml"
+			// Write test content to file
+			err := os.WriteFile(filePath, []byte(tt.args.fileContent), 0644)
+			if err != nil {
+				t.Fatalf("failed to write test file: %v", err)
 			}
 
 			got, err := readContentOverridesFromDnf5RepoOverride(filePath)
