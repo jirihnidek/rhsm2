@@ -199,3 +199,185 @@ func TestCreateHTTPsClientProxyFromConf(t *testing.T) {
 		t.Fatalf("expected server version: %s, got: %s", expectedServerVer, serverStatus.Version)
 	}
 }
+
+// TestGetEntitlementCertAuthConnection test the case when we try to get the existing connection
+// using entitlement certificate authentication
+func TestGetEntitlementCertAuthConnection(t *testing.T) {
+	t.Parallel()
+
+	// Create root directory for this test
+	tempDirFilePath := t.TempDir()
+
+	// Setup filesystem with entitlement certificates
+	testingFiles, err := setupTestingFileSystem(
+		tempDirFilePath,
+		true,
+		true,
+		true,
+		true,
+		true)
+	if err != nil {
+		t.Fatalf("unable to setup testing environment: %s", err)
+	}
+
+	server := httptest.NewTLSServer(
+		http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
+			// Verify that client certificate was provided
+			if req.TLS == nil || len(req.TLS.PeerCertificates) == 0 {
+				t.Fatalf("expected client certificate, but none was provided")
+			}
+
+			// Return code 200
+			rw.WriteHeader(200)
+			_, _ = rw.Write([]byte("OK"))
+		}))
+	defer server.Close()
+
+	rhsmClient, err := setupTestingRHSMClient(testingFiles, server, nil)
+	if err != nil {
+		t.Fatalf("unable to setup testing rhsm client: %s", err)
+	}
+
+	// Get entitlement cert auth connection
+	connection, err := rhsmClient.getEntitlementCertAuthConnection()
+	if err != nil {
+		t.Fatalf("failed to create entitlement cert auth connection: %s", err)
+	}
+
+	if connection == nil {
+		t.Fatalf("connection should not be nil")
+	}
+
+	// Verify connection has transport configured
+	if connection.Client == nil {
+		t.Fatalf("connection http client should not be nil")
+	}
+}
+
+// TestGetEntitlementCertAuthConnectionWithoutCertAndKey test the case when it is not possible
+// to get connection using entitlement certificate authentication, because there is no entitlement
+// certificate and key
+func TestGetEntitlementCertAuthConnectionWithoutCertAndKey(t *testing.T) {
+	t.Parallel()
+
+	// Create root directory for this test
+	tempDirFilePath := t.TempDir()
+
+	// Setup filesystem with entitlement certificates
+	testingFiles, err := setupTestingFileSystem(
+		tempDirFilePath,
+		true,
+		true,
+		false,
+		false,
+		true)
+	if err != nil {
+		t.Fatalf("unable to setup testing environment: %s", err)
+	}
+
+	server := httptest.NewTLSServer(
+		http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
+			// Verify that client certificate was provided
+			if req.TLS == nil || len(req.TLS.PeerCertificates) == 0 {
+				t.Fatalf("expected client certificate, but none was provided")
+			}
+
+			// Return code 200
+			rw.WriteHeader(200)
+			_, _ = rw.Write([]byte("OK"))
+		}))
+	defer server.Close()
+
+	rhsmClient, err := setupTestingRHSMClient(testingFiles, server, nil)
+	if err != nil {
+		t.Fatalf("unable to setup testing rhsm client: %s", err)
+	}
+
+	// Try to get entitlement cert auth connection
+	connection, err := rhsmClient.getEntitlementCertAuthConnection()
+	if err == nil || connection != nil {
+		t.Fatalf("it should not be possible to get connection without entitlement certificate and key")
+	}
+
+	// Test the case when some process installs entitlement certificate meanwhile
+	err = testingFiles.setupEntitlementCertKey(nil)
+	if err != nil {
+		t.Fatalf("unable to setup testing entitlement certificate and key: %s", err)
+	}
+
+	// Try to get entitlement cert auth connection. The getEntitlementCertAuthConnection
+	// should create a new connection
+	connection, err = rhsmClient.getEntitlementCertAuthConnection()
+	if err != nil {
+		t.Fatalf("failed to create entitlement cert auth connection: %s", err)
+	}
+
+	if connection == nil {
+		t.Fatalf("connection should not be nil")
+	}
+
+	// Verify connection has transport configured
+	if connection.Client == nil {
+		t.Fatalf("connection http client should not be nil")
+	}
+}
+
+// TestGetEntitlementCertAuthConnectionWithProxy test the case when we create connection
+// using entitlement certificate authentication with proxy configuration
+func TestGetEntitlementCertAuthConnectionWithProxy(t *testing.T) {
+	t.Parallel()
+
+	// Create root directory for this test
+	tempDirFilePath := t.TempDir()
+
+	// Setup filesystem with entitlement certificates
+	testingFiles, err := setupTestingFileSystem(
+		tempDirFilePath,
+		true,
+		true,
+		true,
+		true,
+		true)
+	if err != nil {
+		t.Fatalf("unable to setup testing environment: %s", err)
+	}
+
+	server := httptest.NewTLSServer(
+		http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
+			// Verify that client certificate was provided
+			if req.TLS == nil || len(req.TLS.PeerCertificates) == 0 {
+				t.Fatalf("expected client certificate, but none was provided")
+			}
+
+			// Return code 200
+			rw.WriteHeader(200)
+			_, _ = rw.Write([]byte("OK"))
+		}))
+	defer server.Close()
+
+	rhsmClient, err := setupTestingRHSMClient(testingFiles, server, nil)
+	if err != nil {
+		t.Fatalf("unable to setup testing rhsm client: %s", err)
+	}
+
+	// Add proxy configuration
+	rhsmClient.RHSMConf.Server.ProxyHostname = "proxy.example.com"
+	rhsmClient.RHSMConf.Server.ProxyPort = "8080"
+	rhsmClient.RHSMConf.Server.ProxyUser = "proxyuser"
+	rhsmClient.RHSMConf.Server.ProxyPassword = "proxypass"
+
+	// Create entitlement cert auth connection with proxy
+	connection, err := rhsmClient.getEntitlementCertAuthConnection()
+	if err != nil {
+		t.Fatalf("failed to create entitlement cert auth connection with proxy: %s", err)
+	}
+
+	if connection == nil {
+		t.Fatalf("connection should not be nil")
+	}
+
+	// Verify connection has transport configured
+	if connection.Client == nil {
+		t.Fatalf("connection http client should not be nil")
+	}
+}

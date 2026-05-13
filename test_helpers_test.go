@@ -99,6 +99,78 @@ type TestingFileSystem struct {
 	YumRepoFilePath        string
 }
 
+func (testingFileSystem *TestingFileSystem) setupSyspurpose(perm *os.FileMode) error {
+	// Copy syspurpose file to temporary directory
+	srcSyspurposeFilePath := "./testdata/etc/rhsm/syspurpose/syspurpose.json"
+	dstSyspurposeFilePath := filepath.Join(testingFileSystem.SyspurposeDirPath, "syspurpose.json")
+	err := copyFile(&srcSyspurposeFilePath, &dstSyspurposeFilePath, perm)
+	if err != nil {
+		return fmt.Errorf(
+			"unable to create syspurpose testing file: %s", err)
+	}
+	testingFileSystem.SyspurposeFilePath = dstSyspurposeFilePath
+	return nil
+}
+
+func (testingFileSystem *TestingFileSystem) setupConsumerCertKey(perm *os.FileMode) error {
+	// Copy consumer key to temporary directory
+	srcConsumerKeyFilePath := "./testdata/etc/pki/consumer/key.pem"
+	dstConsumerKeyFilePath := filepath.Join(testingFileSystem.ConsumerDirPath, "key.pem")
+	err := copyFile(&srcConsumerKeyFilePath, &dstConsumerKeyFilePath, perm)
+	if err != nil {
+		return fmt.Errorf(
+			"unable to create testing consumer key file: %s", err)
+	}
+	// Copy consumer cert to temporary directory
+	srcConsumerCertFilePath := "./testdata/etc/pki/consumer/cert.pem"
+	dstConsumerCertFilePath := filepath.Join(testingFileSystem.ConsumerDirPath, "cert.pem")
+	err = copyFile(&srcConsumerCertFilePath, &dstConsumerCertFilePath, perm)
+	if err != nil {
+		return fmt.Errorf(
+			"unable to create testing consumer cert file: %s", err)
+	}
+	return nil
+}
+
+func (testingFileSystem *TestingFileSystem) setupEntitlementCertKey(perm *os.FileMode) error {
+	// Copy entitlement key to temporary directory
+	srcEntitlementKeyFilePath := "./testdata/etc/pki/entitlement/" + testEntCertSerialNumber + "-key.pem"
+	dstEntitlementKeyFilePath := filepath.Join(testingFileSystem.EntitlementDirPath, testEntCertSerialNumber+"-key.pem")
+	err := copyFile(&srcEntitlementKeyFilePath, &dstEntitlementKeyFilePath, perm)
+	if err != nil {
+		return fmt.Errorf(
+			"unable to create testing entitlement key file: %s", err)
+	}
+	// Copy entitlement cert to temporary directory
+	srcEntitlementCertFilePath := "./testdata/etc/pki/entitlement/" + testEntCertSerialNumber + ".pem"
+	dstEntitlementCertFilePath := filepath.Join(testingFileSystem.EntitlementDirPath, testEntCertSerialNumber+".pem")
+	err = copyFile(&srcEntitlementCertFilePath, &dstEntitlementCertFilePath, perm)
+	if err != nil {
+		return fmt.Errorf("unable to create testing entitlement cert file: %s", err)
+	}
+	return nil
+}
+
+func (testingFileSystem *TestingFileSystem) setupProductCerts(perm *os.FileMode) error {
+	srcProductCertFilePath := "./testdata/etc/pki/product/900.pem"
+	dstProductCertFilePath := filepath.Join(testingFileSystem.ProductDirPath, "900.pem")
+	err := copyFile(&srcProductCertFilePath, &dstProductCertFilePath, perm)
+	if err != nil {
+		return fmt.Errorf("unable to create testing product cert file: %s", err)
+	}
+	return nil
+}
+
+func (testingFileSystem *TestingFileSystem) setupDefaultProductCerts(perm *os.FileMode) error {
+	srcDefaultProductCertFilePath := "./testdata/etc/pki/product-default/479.pem"
+	dstDefaultProductCertFilePath := filepath.Join(testingFileSystem.ProductDefaultDirPath, "479.pem")
+	err := copyFile(&srcDefaultProductCertFilePath, &dstDefaultProductCertFilePath, perm)
+	if err != nil {
+		return fmt.Errorf("unable to create testing default product cert file: %s", err)
+	}
+	return nil
+}
+
 // setupTestingFiles tries to copy and generate testing files to testing directories
 func setupTestingFiles(
 	testingFileSystem *TestingFileSystem,
@@ -120,61 +192,31 @@ func setupTestingFiles(
 	testingFileSystem.OsReleaseFilePath = dstOsReleaseFilePath
 
 	if syspurposeFilesInstalled {
-		// Copy syspurpose file to temporary directory
-		srcSyspurposeFilePath := "./testdata/etc/rhsm/syspurpose/syspurpose.json"
-		dstSyspurposeFilePath := filepath.Join(testingFileSystem.SyspurposeDirPath, "syspurpose.json")
-		err := copyFile(&srcSyspurposeFilePath, &dstSyspurposeFilePath, perm)
+		err := testingFileSystem.setupSyspurpose(perm)
 		if err != nil {
-			return fmt.Errorf(
-				"unable to create syspurpose testing file: %s", err)
+			return err
 		}
-		testingFileSystem.SyspurposeFilePath = dstSyspurposeFilePath
 	}
 
 	if consumerCertInstalled {
-		// Copy consumer key to temporary directory
-		srcConsumerKeyFilePath := "./testdata/etc/pki/consumer/key.pem"
-		dstConsumerKeyFilePath := filepath.Join(testingFileSystem.ConsumerDirPath, "key.pem")
-		err := copyFile(&srcConsumerKeyFilePath, &dstConsumerKeyFilePath, perm)
+		err := testingFileSystem.setupConsumerCertKey(perm)
 		if err != nil {
-			return fmt.Errorf(
-				"unable to create testing consumer key file: %s", err)
-		}
-		// Copy consumer cert to temporary directory
-		srcConsumerCertFilePath := "testdata/etc/pki/consumer/cert.pem"
-		dstConsumerCertFilePath := filepath.Join(testingFileSystem.ConsumerDirPath, "cert.pem")
-		err = copyFile(&srcConsumerCertFilePath, &dstConsumerCertFilePath, perm)
-		if err != nil {
-			return fmt.Errorf(
-				"unable to create testing consumer cert file: %s", err)
+			return err
 		}
 	}
 
 	if entCertsInstalled {
-		// Copy entitlement key to temporary directory
-		srcEntitlementKeyFilePath := "./testdata/etc/pki/entitlement/" + testEntCertSerialNumber + "-key.pem"
-		dstEntitlementKeyFilePath := filepath.Join(testingFileSystem.EntitlementDirPath, testEntCertSerialNumber+"-key.pem")
-		err := copyFile(&srcEntitlementKeyFilePath, &dstEntitlementKeyFilePath, perm)
+		err := testingFileSystem.setupEntitlementCertKey(perm)
 		if err != nil {
-			return fmt.Errorf(
-				"unable to create testing entitlement key file: %s", err)
-		}
-		// Copy entitlement cert to temporary directory
-		srcEntitlementCertFilePath := "./testdata/etc/pki/entitlement/" + testEntCertSerialNumber + ".pem"
-		dstEntitlementCertFilePath := filepath.Join(testingFileSystem.EntitlementDirPath, testEntCertSerialNumber+".pem")
-		err = copyFile(&srcEntitlementCertFilePath, &dstEntitlementCertFilePath, perm)
-		if err != nil {
-			return fmt.Errorf("unable to create testing entitlement cert file: %s", err)
+			return err
 		}
 	}
 
 	// Copy product cert to temporary directory
 	if prodCertsInstalled {
-		srcProductCertFilePath := "./testdata/etc/pki/product/900.pem"
-		dstProductCertFilePath := filepath.Join(testingFileSystem.ProductDirPath, "900.pem")
-		err := copyFile(&srcProductCertFilePath, &dstProductCertFilePath, perm)
+		err := testingFileSystem.setupProductCerts(perm)
 		if err != nil {
-			return fmt.Errorf("unable to create testing product cert file: %s", err)
+			return err
 		}
 	}
 
@@ -183,11 +225,9 @@ func setupTestingFiles(
 	// but there are other Linux distributions without preinstalled product certificates
 	// like Fedora or Centos Stream
 	if defaultProdCertsInstalled {
-		srcDefaultProductCertFilePath := "./testdata/etc/pki/product-default/479.pem"
-		dstDefaultProductCertFilePath := filepath.Join(testingFileSystem.ProductDefaultDirPath, "479.pem")
-		err := copyFile(&srcDefaultProductCertFilePath, &dstDefaultProductCertFilePath, perm)
+		err := testingFileSystem.setupDefaultProductCerts(perm)
 		if err != nil {
-			return fmt.Errorf("unable to create testing default product cert file: %s", err)
+			return err
 		}
 	}
 
@@ -432,7 +472,7 @@ func setupTestingRHSMClient(testingFiles *TestingFileSystem, server *httptest.Se
 		rhsmClient.RHSMConf.RHSM.BaseURL = cdn.URL
 
 		// Mock connections to CDN with the mock server
-		rhsmClient.EntitlementCertAuthConnection = &RHSMConnection{
+		rhsmClient.entitlementCertAuthConnection = &RHSMConnection{
 			AuthType:       EntitlementCertAuth,
 			Client:         cdn.Client(),
 			ServerHostname: &cdnHostname,
