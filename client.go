@@ -13,13 +13,13 @@ import (
 
 // RHSMClient contains information about client. It can hold up to 3 different
 // type of connections, but usually it is necessary to use only consumerCertAuthConnection.
-// The NoAuthConnection is used only during registration process, when no consumer
+// The noAuthConnection is used only during registration process, when no consumer
 // certificate/key is installed. Note: we do not create special connection for
-// "Base Auth", because it is actually NoAuthConnection with special HTTP header.
+// "Base Auth", because it is actually noAuthConnection with special HTTP header.
 // entitlementCertAuthConnection could be used for communication with CDN.
 type RHSMClient struct {
 	RHSMConf                      *RHSMConf
-	NoAuthConnection              *RHSMConnection
+	noAuthConnection              *RHSMConnection
 	consumerCertAuthConnection    *RHSMConnection
 	entitlementCertAuthConnection *RHSMConnection
 }
@@ -59,7 +59,7 @@ func createRHSMClient(confFilePath *string) (*RHSMClient, error) {
 
 	rhsmClient := &RHSMClient{
 		RHSMConf:                      rhsmConf,
-		NoAuthConnection:              nil,
+		noAuthConnection:              nil,
 		consumerCertAuthConnection:    nil,
 		entitlementCertAuthConnection: nil,
 	}

@@ -442,7 +442,7 @@ func setupTestingRHSMClient(testingFiles *TestingFileSystem, server *httptest.Se
 		rhsmClient.RHSMConf.Server.Prefix = prefix
 
 		// Mock connections to server with mock server
-		rhsmClient.NoAuthConnection = &RHSMConnection{
+		rhsmClient.noAuthConnection = &RHSMConnection{
 			AuthType:       NoAuth,
 			Client:         server.Client(),
 			ServerHostname: &hostname,

@@ -45,7 +45,12 @@ func (rhsmClient *RHSMClient) GetOrgs(
 	}
 	clientInfo.xCorrelationId = createCorrelationId()
 
-	res, err := rhsmClient.NoAuthConnection.request(
+	connection, err := rhsmClient.getNoAuthConnection()
+	if err != nil {
+		return nil, fmt.Errorf("unable to get no-auth connection: %v", err)
+	}
+
+	res, err := connection.request(
 		http.MethodGet,
 		"users/"+username+"/owners",
 		"",

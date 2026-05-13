@@ -24,7 +24,7 @@ func TestCreateRHSMClient(t *testing.T) {
 			t.Fatalf("consumer key file path: '%s' != 'testdata/pki/consumer/key.pem'", *consumerKeyPath)
 		}
 
-		if rhsmClient.NoAuthConnection == nil {
+		if rhsmClient.noAuthConnection == nil {
 			t.Fatal("no-auth connection has not been created")
 		}
 
