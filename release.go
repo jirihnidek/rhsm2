@@ -186,7 +186,12 @@ func (rhsmClient *RHSMClient) filterInstalledProductsUsingOSRelease(installedPro
 
 // getListingFile tries to get the content of the 'listing' file from CDN
 func (rhsmClient *RHSMClient) getListingFile(listingPath string) (*string, error) {
-	resp, err := rhsmClient.EntitlementCertAuthConnection.request(
+	connection, err := rhsmClient.getEntitlementCertAuthConnection()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get entitlement cert auth connection: %s", err)
+	}
+
+	resp, err := connection.request(
 		http.MethodGet,
 		listingPath,
 		"",
@@ -440,7 +445,8 @@ func (rhsmClient *RHSMClient) getReleaseTags() ([]string, error) {
 // should include only unique values of releases. There should not be any duplicates.
 func (rhsmClient *RHSMClient) GetCdnReleases(clientInfo *ClientInfo) (map[string]struct{}, error) {
 	// If the connection to the repository does not exist, return error
-	if rhsmClient.EntitlementCertAuthConnection == nil || rhsmClient.EntitlementCertAuthConnection.Client == nil {
+	_, err := rhsmClient.getEntitlementCertAuthConnection()
+	if err != nil {
 		return nil, errors.New("connection to repository does not exist")
 	}
 

@@ -382,6 +382,66 @@ func (rhsmClient *RHSMClient) createCertAuthConnection(
 	return nil
 }
 
+// getEntitlementCertAuthConnection returns the entitlement cert auth connection if it exists
+// and it tries to create it if it doesn't exist
+func (rhsmClient *RHSMClient) getEntitlementCertAuthConnection() (*RHSMConnection, error) {
+	if rhsmClient.entitlementCertAuthConnection != nil {
+		return rhsmClient.entitlementCertAuthConnection, nil
+	}
+
+	cdnHost, cdnPort, cdnPath, err := parseBaseURL(rhsmClient.RHSMConf.RHSM.BaseURL)
+	if err != nil {
+		return nil, err
+	}
+
+	certKeys, err := rhsmClient.getInstalledEntitlementCertificateKeys()
+	if err != nil {
+		return nil, err
+	}
+
+	var certPath, keyPath *string
+	for _, certKey := range certKeys {
+		if certKey.CertPath == nil {
+			log.Debug().Msgf("cert path is nil")
+			continue
+		}
+		if certKey.KeyPath == nil {
+			log.Debug().Msgf("key path is nil")
+			continue
+		}
+		if _, err := os.Stat(*certKey.KeyPath); err != nil {
+			log.Debug().Msgf("key path %s does not exist: %s", *certKey.KeyPath, err)
+			continue
+		}
+		if _, err := os.Stat(*certKey.CertPath); err != nil {
+			log.Debug().Msgf("cert path %s does not exist: %s", *certKey.CertPath, err)
+			continue
+		}
+		if certKey.CertPath != nil && certKey.KeyPath != nil {
+			certPath = certKey.CertPath
+			keyPath = certKey.KeyPath
+			break
+		}
+	}
+
+	if keyPath == nil || certPath == nil {
+		return nil, fmt.Errorf("no entitlement certificate and key found")
+	}
+
+	err = rhsmClient.createEntitlementCertAuthConnection(
+		&cdnHost,
+		&cdnPort,
+		&cdnPath,
+		certPath,
+		keyPath,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("entitlement cert auth connection not initialized: %s", err)
+	}
+
+	return rhsmClient.entitlementCertAuthConnection, nil
+}
+
 // createEntitlementCertAuthConnection tries to create a connection using entitlement cert/key
 // for authentication. It is typically used when we want to communicate with CDN.
 // E.g. when we want to get information about release.
@@ -398,7 +458,7 @@ func (rhsmClient *RHSMClient) createEntitlementCertAuthConnection(
 		return fmt.Errorf("unable to create entitlement cert auth connection: %v", err)
 	}
 
-	rhsmClient.EntitlementCertAuthConnection = &RHSMConnection{
+	rhsmClient.entitlementCertAuthConnection = &RHSMConnection{
 		AuthType:       EntitlementCertAuth,
 		Client:         client,
 		ServerHostname: hostname,

@@ -16,12 +16,12 @@ import (
 // The NoAuthConnection is used only during registration process, when no consumer
 // certificate/key is installed. Note: we do not create special connection for
 // "Base Auth", because it is actually NoAuthConnection with special HTTP header.
-// EntitlementCertAuthConnection could be used for communication with CDN.
+// entitlementCertAuthConnection could be used for communication with CDN.
 type RHSMClient struct {
 	RHSMConf                      *RHSMConf
 	NoAuthConnection              *RHSMConnection
 	consumerCertAuthConnection    *RHSMConnection
-	EntitlementCertAuthConnection *RHSMConnection
+	entitlementCertAuthConnection *RHSMConnection
 }
 
 var singletonRhsmClient *RHSMClient
@@ -61,7 +61,7 @@ func createRHSMClient(confFilePath *string) (*RHSMClient, error) {
 		RHSMConf:                      rhsmConf,
 		NoAuthConnection:              nil,
 		consumerCertAuthConnection:    nil,
-		EntitlementCertAuthConnection: nil,
+		entitlementCertAuthConnection: nil,
 	}
 
 	// Try to create connection without authentication
@@ -111,23 +111,14 @@ func createRHSMClient(confFilePath *string) (*RHSMClient, error) {
 		}
 		if _, err := os.Stat(*certKey.KeyPath); err == nil {
 			if _, err := os.Stat(*certKey.CertPath); err == nil {
-				cdnURL, err := url.Parse(rhsmConf.RHSM.BaseURL)
+				cdnHost, cdnPort, cdnPath, err := parseBaseURL(rhsmConf.RHSM.BaseURL)
 				if err != nil {
 					return nil, err
-				}
-				log.Debug().Msgf("cdnURL: %s, host: %s, port %s", cdnURL, cdnURL.Host, cdnURL.Port())
-				cdnPort := cdnURL.Port()
-				cdnHost := cdnURL.Host
-				if cdnPort == "" {
-					cdnPort = "443"
-				} else {
-					// Split host and port
-					cdnHost = strings.Split(cdnURL.Host, ":")[0]
 				}
 				err = rhsmClient.createEntitlementCertAuthConnection(
 					&cdnHost,
 					&cdnPort,
-					&cdnURL.Path,
+					&cdnPath,
 					certKey.CertPath,
 					certKey.KeyPath,
 				)
@@ -139,6 +130,24 @@ func createRHSMClient(confFilePath *string) (*RHSMClient, error) {
 	}
 
 	return rhsmClient, nil
+}
+
+// parseBaseURL tries to parse the base URL from the RHSM configuration
+func parseBaseURL(baseURL string) (string, string, string, error) {
+	cdnURL, err := url.Parse(baseURL)
+	if err != nil {
+		return "", "", "", err
+	}
+	log.Debug().Msgf("cdnURL: %s, host: %s, port %s", cdnURL, cdnURL.Host, cdnURL.Port())
+	cdnPort := cdnURL.Port()
+	cdnHost := cdnURL.Host
+	if cdnPort == "" {
+		cdnPort = "443"
+	} else {
+		// Split host and port
+		cdnHost = strings.Split(cdnURL.Host, ":")[0]
+	}
+	return cdnHost, cdnPort, cdnURL.Path, nil
 }
 
 // consumerPEMFile returns a full path to a PEM file in the consumer certificate directory
