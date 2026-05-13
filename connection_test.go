@@ -200,6 +200,102 @@ func TestCreateHTTPsClientProxyFromConf(t *testing.T) {
 	}
 }
 
+// TestGetCertAuthConnectionRegistered test the case when we try to get connection
+// using consumer certificate authentication for registered system
+func TestGetCertAuthConnectionRegistered(t *testing.T) {
+	t.Parallel()
+
+	// Create root directory for this test
+	tempDirFilePath := t.TempDir()
+
+	// Setup filesystem with consumer certificates
+	testingFiles, err := setupTestingFileSystem(
+		tempDirFilePath,
+		true,
+		true,
+		false,
+		false,
+		true)
+	if err != nil {
+		t.Fatalf("unable to setup testing environment: %s", err)
+	}
+
+	server := httptest.NewTLSServer(
+		http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
+			// Verify that client certificate was provided
+			if req.TLS == nil || len(req.TLS.PeerCertificates) == 0 {
+				t.Fatalf("expected client certificate, but none was provided")
+			}
+
+			// Return code 200
+			rw.WriteHeader(200)
+			_, _ = rw.Write([]byte("OK"))
+		}))
+	defer server.Close()
+
+	rhsmClient, err := setupTestingRHSMClient(testingFiles, server, nil)
+	if err != nil {
+		t.Fatalf("unable to setup testing rhsm client: %s", err)
+	}
+
+	// Get cert auth connection
+	connection, err := rhsmClient.getCertAuthConnection()
+	if err != nil {
+		t.Fatalf("failed to create cert auth connection: %s", err)
+	}
+
+	if connection == nil {
+		t.Fatalf("connection should not be nil")
+	}
+
+	// Verify connection has transport configured
+	if connection.Client == nil {
+		t.Fatalf("connection http client should not be nil")
+	}
+}
+
+// TestGetCertAuthConnectionNotRegistered test the case when we try to get connection
+// using consumer certificate authentication, but system is not registered
+func TestGetCertAuthConnectionNotRegistered(t *testing.T) {
+	t.Parallel()
+
+	// Create root directory for this test
+	tempDirFilePath := t.TempDir()
+
+	// Setup filesystem without consumer certificates
+	testingFiles, err := setupTestingFileSystem(
+		tempDirFilePath,
+		false,
+		false,
+		false,
+		false,
+		false)
+	if err != nil {
+		t.Fatalf("unable to setup testing environment: %s", err)
+	}
+
+	server := httptest.NewTLSServer(
+		http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
+			// Return code 200
+			rw.WriteHeader(200)
+			_, _ = rw.Write([]byte("OK"))
+		}))
+	defer server.Close()
+
+	rhsmClient, err := setupTestingRHSMClient(testingFiles, server, nil)
+	if err != nil {
+		t.Fatalf("unable to setup testing rhsm client: %s", err)
+	}
+	// Set the "consumer" connection to nil
+	rhsmClient.consumerCertAuthConnection = nil
+
+	// Try to get cert auth connection
+	connection, err := rhsmClient.getCertAuthConnection()
+	if err == nil || connection != nil {
+		t.Fatalf("it should not be possible to get connection without consumer certificate and key")
+	}
+}
+
 // TestGetEntitlementCertAuthConnection test the case when we try to get the existing connection
 // using entitlement certificate authentication
 func TestGetEntitlementCertAuthConnection(t *testing.T) {
