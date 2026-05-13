@@ -381,3 +381,56 @@ func TestGetEntitlementCertAuthConnectionWithProxy(t *testing.T) {
 		t.Fatalf("connection http client should not be nil")
 	}
 }
+
+// TestGetNoAuthConnection test the case when we try to get the no-auth connection
+func TestGetNoAuthConnection(t *testing.T) {
+	t.Parallel()
+
+	// Create root directory for this test
+	tempDirFilePath := t.TempDir()
+
+	// Setup filesystem without consumer certificates
+	testingFiles, err := setupTestingFileSystem(
+		tempDirFilePath,
+		false,
+		false,
+		false,
+		false,
+		false)
+	if err != nil {
+		t.Fatalf("unable to setup testing environment: %s", err)
+	}
+
+	server := httptest.NewTLSServer(
+		http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
+			// Verify that no client certificate was provided
+			if req.TLS != nil && len(req.TLS.PeerCertificates) > 0 {
+				t.Fatalf("expected no client certificate, but one was provided")
+			}
+
+			// Return code 200
+			rw.WriteHeader(200)
+			_, _ = rw.Write([]byte("OK"))
+		}))
+	defer server.Close()
+
+	rhsmClient, err := setupTestingRHSMClient(testingFiles, server, nil)
+	if err != nil {
+		t.Fatalf("unable to setup testing rhsm client: %s", err)
+	}
+
+	// Get no-auth connection
+	connection, err := rhsmClient.getNoAuthConnection()
+	if err != nil {
+		t.Fatalf("failed to get no-auth connection: %s", err)
+	}
+
+	if connection == nil {
+		t.Fatalf("connection should not be nil")
+	}
+
+	// Verify connection has transport configured
+	if connection.Client == nil {
+		t.Fatalf("connection http client should not be nil")
+	}
+}

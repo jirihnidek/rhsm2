@@ -218,7 +218,12 @@ func (rhsmClient *RHSMClient) registerSystem(
 		return nil, err
 	}
 
-	res, err := rhsmClient.NoAuthConnection.request(
+	connection, err := rhsmClient.getNoAuthConnection()
+	if err != nil {
+		return nil, fmt.Errorf("unable to get no-auth connection: %v", err)
+	}
+
+	res, err := connection.request(
 		http.MethodPost,
 		"consumers",
 		query,

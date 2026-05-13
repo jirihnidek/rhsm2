@@ -37,7 +37,10 @@ func (rhsmClient *RHSMClient) GetServerEndpoints(clientInfo *ClientInfo) (*[]RHS
 		// When no consumer has been installed, then we will
 		// try to use no-auth connection. When server is available,
 		// then this should work
-		connection = rhsmClient.NoAuthConnection
+		connection, err = rhsmClient.getNoAuthConnection()
+		if err != nil {
+			return nil, fmt.Errorf("unable to get no-auth connection: %v", err)
+		}
 	}
 
 	res, err := connection.request(
@@ -122,7 +125,10 @@ func (rhsmClient *RHSMClient) GetServerStatus(clientInfo *ClientInfo) (*RHSMStat
 		// When no consumer has been installed, then we will
 		// try to use no-auth connection. When server is available,
 		// then this should work
-		connection = rhsmClient.NoAuthConnection
+		connection, err = rhsmClient.getNoAuthConnection()
+		if err != nil {
+			return nil, fmt.Errorf("unable to get no-auth connection: %v", err)
+		}
 	}
 
 	res, err := connection.request(

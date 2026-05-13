@@ -309,6 +309,24 @@ func (rhsmClient *RHSMClient) createHTTPsClient(certFile *string, keyFile *strin
 	return client, nil
 }
 
+// getNoAuthConnection establishes or retrieves a no-authentication connection to the RHSM server.
+func (rhsmClient *RHSMClient) getNoAuthConnection() (*RHSMConnection, error) {
+	if rhsmClient.noAuthConnection != nil {
+		return rhsmClient.noAuthConnection, nil
+	}
+
+	hostname := &rhsmClient.RHSMConf.Server.Hostname
+	port := &rhsmClient.RHSMConf.Server.Port
+	prefix := &rhsmClient.RHSMConf.Server.Prefix
+
+	err := rhsmClient.createNoAuthConnection(hostname, port, prefix)
+	if err != nil {
+		return nil, fmt.Errorf("unable to create no-auth connection: %v", err)
+	}
+
+	return rhsmClient.noAuthConnection, nil
+}
+
 // createNoAuthConnection tries to create connection not using any cert authentication of client
 func (rhsmClient *RHSMClient) createNoAuthConnection(
 	hostname *string,
@@ -321,7 +339,7 @@ func (rhsmClient *RHSMClient) createNoAuthConnection(
 		return fmt.Errorf("unable to create no-auth connection: %v", err)
 	}
 
-	rhsmClient.NoAuthConnection = &RHSMConnection{
+	rhsmClient.noAuthConnection = &RHSMConnection{
 		AuthType:       NoAuth,
 		Client:         client,
 		ServerHostname: hostname,
