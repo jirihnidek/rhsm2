@@ -353,23 +353,26 @@ func (rhsmClient *RHSMClient) createNoAuthConnection(
 // getCertAuthConnection tries to get the current consumer cert auth connection. When the connection
 // does not exist, it creates a new one using the provided configuration.
 func (rhsmClient *RHSMClient) getCertAuthConnection() (*RHSMConnection, error) {
-	if rhsmClient.consumerCertAuthConnection == nil {
-		hostname := &rhsmClient.RHSMConf.Server.Hostname
-		port := &rhsmClient.RHSMConf.Server.Port
-		prefix := &rhsmClient.RHSMConf.Server.Prefix
-		consumerCertFilePath := filepath.Join(rhsmClient.RHSMConf.RHSM.ConsumerCertDir, "cert.pem")
-		if _, err := os.Stat(consumerCertFilePath); err != nil {
-			return nil, fmt.Errorf("consumer certificate %s does not exists", consumerCertFilePath)
-		}
-		consumerKeyFilePath := filepath.Join(rhsmClient.RHSMConf.RHSM.ConsumerCertDir, "key.pem")
-		if _, err := os.Stat(consumerKeyFilePath); err != nil {
-			return nil, fmt.Errorf("consumer key %s does not exists", consumerKeyFilePath)
-		}
-		err := rhsmClient.createCertAuthConnection(hostname, port, prefix, &consumerCertFilePath, &consumerKeyFilePath)
-		if err != nil {
-			return nil, fmt.Errorf("unable to create consumer cert auth connection: %v", err)
-		}
+	if rhsmClient.consumerCertAuthConnection != nil {
+		return rhsmClient.consumerCertAuthConnection, nil
 	}
+
+	hostname := &rhsmClient.RHSMConf.Server.Hostname
+	port := &rhsmClient.RHSMConf.Server.Port
+	prefix := &rhsmClient.RHSMConf.Server.Prefix
+	consumerCertFilePath := filepath.Join(rhsmClient.RHSMConf.RHSM.ConsumerCertDir, "cert.pem")
+	if _, err := os.Stat(consumerCertFilePath); err != nil {
+		return nil, fmt.Errorf("consumer certificate %s does not exists", consumerCertFilePath)
+	}
+	consumerKeyFilePath := filepath.Join(rhsmClient.RHSMConf.RHSM.ConsumerCertDir, "key.pem")
+	if _, err := os.Stat(consumerKeyFilePath); err != nil {
+		return nil, fmt.Errorf("consumer key %s does not exists", consumerKeyFilePath)
+	}
+	err := rhsmClient.createCertAuthConnection(hostname, port, prefix, &consumerCertFilePath, &consumerKeyFilePath)
+	if err != nil {
+		return nil, fmt.Errorf("unable to create consumer cert auth connection: %v", err)
+	}
+
 	return rhsmClient.consumerCertAuthConnection, nil
 }
 
