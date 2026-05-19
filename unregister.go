@@ -110,7 +110,7 @@ func (rhsmClient *RHSMClient) Clean() error {
 }
 
 // Unregister tries to unregister system
-func (rhsmClient *RHSMClient) Unregister(clientInfo *ClientInfo) error {
+func (rhsmClient *RHSMClient) Unregister(metadata *RequestMetadata) error {
 	consumerUuid, err := rhsmClient.GetConsumerUUID()
 
 	if err != nil {
@@ -119,23 +119,21 @@ func (rhsmClient *RHSMClient) Unregister(clientInfo *ClientInfo) error {
 
 	var headers = make(map[string]string)
 
-	if clientInfo == nil {
-		clientInfo = &ClientInfo{"", "", ""}
-	}
-	clientInfo.xCorrelationId = createCorrelationId()
+	metadata = sanitizeMetadata(metadata)
 
 	connection, err := rhsmClient.getCertAuthConnection()
 	if err != nil {
 		return fmt.Errorf("unable to get consumer cert auth connection: %v", err)
 	}
 	res, err := connection.request(
+		rhsmClient.UserAgent,
 		http.MethodDelete,
 		"consumers/"+*consumerUuid,
 		"",
 		"",
 		&headers,
 		nil,
-		clientInfo,
+		metadata,
 	)
 
 	// When we are not able to call REST API call, then cancel registration process.

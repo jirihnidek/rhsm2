@@ -11,6 +11,13 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
+// UserAgentInfo holds information about the current client connected
+// to the candlepin server
+type UserAgentInfo struct {
+	AppName      string
+	Distribution string
+}
+
 // RHSMClient contains information about client. It can hold up to 3 different
 // type of connections, but usually it is necessary to use only consumerCertAuthConnection.
 // The noAuthConnection is used only during registration process, when no consumer
@@ -18,6 +25,7 @@ import (
 // "Base Auth", because it is actually noAuthConnection with special HTTP header.
 // entitlementCertAuthConnection could be used for communication with CDN.
 type RHSMClient struct {
+	UserAgent                     *UserAgentInfo
 	RHSMConf                      *RHSMConf
 	noAuthConnection              *RHSMConnection
 	consumerCertAuthConnection    *RHSMConnection
@@ -27,14 +35,14 @@ type RHSMClient struct {
 var singletonRhsmClient *RHSMClient
 var once sync.Once
 
-// GetRHSMClient tries to return instance of RHSMClient. If the instance
-// already exist, then existing instance is returned. The confFilePath
+// GetRHSMClient tries to return the instance of RHSMClient. If the instance
+// already exists, then the existing instance is returned. The confFilePath
 // is used only in the first call of the function. It is just ignored
 // in any other next call.
-func GetRHSMClient(confFilePath *string) (*RHSMClient, error) {
+func GetRHSMClient(appName *string, confFilePath *string) (*RHSMClient, error) {
 	var err error
 	once.Do(func() {
-		singletonRhsmClient, err = createRHSMClient(confFilePath)
+		singletonRhsmClient, err = createRHSMClient(appName, confFilePath)
 	})
 	if err != nil {
 		return nil, err
@@ -43,7 +51,7 @@ func GetRHSMClient(confFilePath *string) (*RHSMClient, error) {
 }
 
 // createRHSMClient tries to create structure holding information about RHSM client
-func createRHSMClient(confFilePath *string) (*RHSMClient, error) {
+func createRHSMClient(appName *string, confFilePath *string) (*RHSMClient, error) {
 	var err error
 	var rhsmConf *RHSMConf
 
@@ -58,10 +66,23 @@ func createRHSMClient(confFilePath *string) (*RHSMClient, error) {
 	}
 
 	rhsmClient := &RHSMClient{
+		UserAgent: &UserAgentInfo{
+			AppName:      *appName,
+			Distribution: "",
+		},
 		RHSMConf:                      rhsmConf,
 		noAuthConnection:              nil,
 		consumerCertAuthConnection:    nil,
 		entitlementCertAuthConnection: nil,
+	}
+
+	// Try to get information about the Linux distribution from /etc/os-release
+	content, err := os.ReadFile(rhsmClient.RHSMConf.osReleaseFilePath)
+	if err == nil {
+		release, err := parseOSRelease(&content)
+		if err == nil {
+			rhsmClient.UserAgent.Distribution = release.ID + "/" + release.VersionID
+		}
 	}
 
 	// Try to create connection without authentication

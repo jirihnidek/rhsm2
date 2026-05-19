@@ -34,7 +34,7 @@ func (rhsmClient *RHSMClient) GetEnvironments(
 	username string,
 	password string,
 	organization string,
-	clientInfo *ClientInfo,
+	metadata *RequestMetadata,
 ) ([]Environment, error) {
 	var environments []Environment
 	var headers = make(map[string]string)
@@ -42,23 +42,21 @@ func (rhsmClient *RHSMClient) GetEnvironments(
 	headers["username"] = username
 	headers["password"] = password
 
-	if clientInfo == nil {
-		clientInfo = &ClientInfo{"", "", ""}
-	}
-	clientInfo.xCorrelationId = createCorrelationId()
+	metadata = sanitizeMetadata(metadata)
 
 	connection, err := rhsmClient.getNoAuthConnection()
 	if err != nil {
 		return environments, fmt.Errorf("unable to get no-auth connection: %v", err)
 	}
 	res, err := connection.request(
+		rhsmClient.UserAgent,
 		http.MethodGet,
 		"owners/"+organization+"/environments",
 		"",
 		"",
 		&headers,
 		nil,
-		clientInfo)
+		metadata)
 
 	if err != nil {
 		return environments, fmt.Errorf("unable to get list of environments: %s", err)

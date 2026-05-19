@@ -6,9 +6,10 @@ import "testing"
 // successfully created using given configuration file
 func TestCreateRHSMClient(t *testing.T) {
 	t.Parallel()
+	appName := "unit-tester/0.1"
 	confFilePath := "./testdata/etc/rhsm/rhsm.conf"
 
-	rhsmClient, err := createRHSMClient(&confFilePath)
+	rhsmClient, err := createRHSMClient(&appName, &confFilePath)
 
 	if err != nil {
 		t.Fatalf("unable to create RHSM client: %s", err)
@@ -37,13 +38,14 @@ func TestCreateRHSMClient(t *testing.T) {
 // TestGetRHSMClient test the case, when client tries to get
 // RHSMClient multiple times. It should be still the same instance
 func TestGetRHSMClient(t *testing.T) {
+	appName := "unit-tester/0.1"
 	confFilePath := "./testdata/etc/rhsm/rhsm.conf"
 
-	rhsmClient01, err := GetRHSMClient(&confFilePath)
+	rhsmClient01, err := GetRHSMClient(&appName, &confFilePath)
 	if err != nil {
 		t.Fatalf("unable to get instance of RHSM client: %s", err)
 	} else {
-		rhsmClient02, err := GetRHSMClient(&confFilePath)
+		rhsmClient02, err := GetRHSMClient(&appName, &confFilePath)
 		if err != nil {
 			t.Fatalf("unable to get another instance of RHSM client: %s", err)
 		} else {

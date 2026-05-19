@@ -24,7 +24,7 @@ type ContentOverride struct {
 }
 
 // getContentOverrides tries to get content overrides from server
-func (rhsmClient *RHSMClient) getContentOverrides(info *ClientInfo) ([]ContentOverride, error) {
+func (rhsmClient *RHSMClient) getContentOverrides(info *RequestMetadata) ([]ContentOverride, error) {
 	var contentOverrides []ContentOverride
 
 	consumerUuid, err := rhsmClient.GetConsumerUUID()
@@ -40,6 +40,7 @@ func (rhsmClient *RHSMClient) getContentOverrides(info *ClientInfo) ([]ContentOv
 		return nil, fmt.Errorf("unable to get consumer cert auth connection: %v", err)
 	}
 	res, err := connection.request(
+		rhsmClient.UserAgent,
 		http.MethodGet,
 		"consumers/"+*consumerUuid+"/content_overrides",
 		"",

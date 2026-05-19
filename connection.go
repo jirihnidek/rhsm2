@@ -15,7 +15,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/henvic/httpretty"
 	"github.com/jeandeaual/go-locale"
-	"github.com/jirihnidek/rhsm2/constants"
 	"github.com/rs/zerolog/log"
 )
 
@@ -51,55 +50,39 @@ func createCorrelationId() string {
 	return uuid.New().String()
 }
 
-// UserAgentInfo holds information about current client connected
-// to candlepin server
-type UserAgentInfo struct {
-	BaseString string
-	Command    string
-}
-
-// ClientInfo holds information about current client triggering
-// given HTTP request. Information in this structure could not
+// RequestMetadata holds information about the current client triggering
+// a given HTTP request. Information in this structure could not
 // be stored in rhsmClient, because RHSM client could be also
-// rhsm2.service providing D-Bus API and each D-Bus client
-// communicating over D-Bus can have different preferences
-// (e.g. locale).
-type ClientInfo struct {
-	Locale         string
-	DBusSender     string
-	xCorrelationId string
+// systemd .service providing e.g., D-Bus API or Varlink API
+// and each D-Bus or Varlink client can have different preferences
+// (e.g., locale).
+type RequestMetadata struct {
+	Locale        *string
+	IPCSender     *string
+	CorrelationId *string
 }
 
-var (
-	// UserAgent is the HTTP header used in each HTTP request
-	UserAgent = UserAgentInfo{
-		"RHSM/" + constants.ApiVersion,
-		"",
+func sanitizeMetadata(metadata *RequestMetadata) *RequestMetadata {
+	if metadata == nil {
+		metadata = &RequestMetadata{nil, nil, nil}
 	}
-)
-
-// SetUserAgentCmd set command of UserAgent
-func SetUserAgentCmd(userAgentCmd string) {
-	UserAgent.Command = userAgentCmd
-}
-
-// String returns textual representation of UserAgent
-func (userAgent UserAgentInfo) String() string {
-	if userAgent.Command != "" {
-		return userAgent.BaseString + " (cmd=" + userAgent.Command + ")"
+	if metadata.CorrelationId == nil {
+		correlationID := createCorrelationId()
+		metadata.CorrelationId = &correlationID
 	}
-	return userAgent.BaseString
+	return metadata
 }
 
 // request tries to call HTTP request to candlepin server
 func (connection *RHSMConnection) request(
+	userAgent *UserAgentInfo,
 	method string,
 	path string,
 	query string,
 	fragment string,
 	headers *map[string]string,
 	body *[]byte,
-	clientInfo *ClientInfo,
+	metadata *RequestMetadata,
 ) (*http.Response, error) {
 
 	requestURL := url.URL{
@@ -143,18 +126,22 @@ func (connection *RHSMConnection) request(
 	}
 
 	// Always add HTTP header UserAgent
-	if clientInfo != nil && clientInfo.DBusSender != "" {
+	if metadata != nil && metadata.IPCSender != nil {
 		req.Header.Add(
 			"User-Agent",
-			fmt.Sprintf("%s (dbus_sender=%s)", UserAgent.String(), clientInfo.DBusSender),
+			fmt.Sprintf("%s (trigger-by: %s) %s",
+				userAgent.AppName, *metadata.IPCSender, userAgent.Distribution),
 		)
 	} else {
-		req.Header.Add("User-Agent", UserAgent.String())
+		req.Header.Add(
+			"User-Agent",
+			fmt.Sprintf("%s %s", userAgent.AppName, userAgent.Distribution),
+		)
 	}
 
 	// Always add HTTP header Accept-Language
-	if clientInfo != nil && clientInfo.Locale != "" {
-		req.Header.Add("Accept-Language", clientInfo.Locale)
+	if metadata != nil && metadata.Locale != nil {
+		req.Header.Add("Accept-Language", *metadata.Locale)
 	} else {
 		userLocale, err := locale.GetLocale()
 		if err != nil || userLocale == "" {
@@ -164,10 +151,13 @@ func (connection *RHSMConnection) request(
 		}
 	}
 
-	// Try to add HTTP header X-Correlation-Id
-	if clientInfo != nil && clientInfo.xCorrelationId != "" {
-		req.Header.Add("X-Correlation-Id", clientInfo.xCorrelationId)
+	// Try to add HTTP header Correlation-Id
+	if metadata != nil && metadata.CorrelationId != nil {
+		req.Header.Add("Correlation-ID", *metadata.CorrelationId)
 	}
+
+	// Add HTTP header Request-ID: Unique identifier for a single HTTP request
+	req.Header.Add("Request-ID", uuid.New().String())
 
 	// If "Accept" header is not specified, then request JSON in response
 	var acceptExists = false

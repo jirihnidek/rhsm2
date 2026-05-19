@@ -104,7 +104,7 @@ func (rhsmClient *RHSMClient) getInstalledEntitlementCertificateKeys() (map[int6
 // When it is possible to get entitlement certificate(s), then write these certificate(s) to file.
 // Note: candlepin server returns only one SCA entitlement certificate ATM, but REST API allows to
 // return more entitlement certificates.
-func (rhsmClient *RHSMClient) getSCAEntitlementCertificates(clientInfo *ClientInfo) ([]EntitlementCertificateKeyJSON, error) {
+func (rhsmClient *RHSMClient) getSCAEntitlementCertificates(metadata *RequestMetadata) ([]EntitlementCertificateKeyJSON, error) {
 	consumerUuid, err := rhsmClient.GetConsumerUUID()
 
 	if err != nil {
@@ -118,13 +118,14 @@ func (rhsmClient *RHSMClient) getSCAEntitlementCertificates(clientInfo *ClientIn
 		return nil, fmt.Errorf("unable to get consumer cert auth connection: %v", err)
 	}
 	res, err := connection.request(
+		rhsmClient.UserAgent,
 		http.MethodGet,
 		"consumers/"+*consumerUuid+"/certificates",
 		"",
 		"",
 		&headers,
 		nil,
-		clientInfo)
+		metadata)
 
 	if err != nil {
 		return nil, fmt.Errorf("getting entitlement certificates failed: %s", err)

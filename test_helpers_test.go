@@ -411,6 +411,12 @@ func setupTestingRHSMClient(testingFiles *TestingFileSystem, server *httptest.Se
 	// Create instance of RHSM client
 	rhsmClient := RHSMClient{}
 
+	// Set user agent command to "unit-tester"
+	rhsmClient.UserAgent = &UserAgentInfo{
+		AppName:      "unit-tester/0.1",
+		Distribution: "foo-linux/10.0",
+	}
+
 	// Fill rhsm conf with fake data and temporary paths
 	rhsmClient.RHSMConf = &RHSMConf{
 		yumRepoFilePath:        testingFiles.YumRepoFilePath,

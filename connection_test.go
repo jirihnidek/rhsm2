@@ -18,33 +18,13 @@ func TestCreateXCorrelationID(t *testing.T) {
 	}
 }
 
-// TestUserAgentString test the case, when client has not set command of UserAgent
-// String() method should return default value
-func TestUserAgentString(t *testing.T) {
-	userAgentStr := UserAgent.String()
-	expectedUserAgent := "RHSM/2.0"
-	if userAgentStr != expectedUserAgent {
-		t.Fatalf("expected UserAgent: \"%s\", got: \"%s\"", expectedUserAgent, userAgentStr)
-	}
-}
-
-// TestSetUserAgentCmd test the case, when client set command of UserAgent
-func TestSetUserAgentCmd(t *testing.T) {
-	SetUserAgentCmd("foo-cmd")
-	userAgentStr := UserAgent.String()
-	expectedUserAgent := "RHSM/2.0 (cmd=foo-cmd)"
-	if userAgentStr != expectedUserAgent {
-		t.Fatalf("expected UserAgent: \"%s\", got: \"%s\"", expectedUserAgent, userAgentStr)
-	}
-}
-
-// TestGetServerStatusClientInfo test the case, when we try to
-// call some REST API call with not empty ClientInfo structure
-func TestGetServerStatusClientInfo(t *testing.T) {
+// TestGetServerStatusMetadata test the case, when we try to
+// call some REST API call with not empty RequestMetadata structure
+func TestGetServerStatusMetadata(t *testing.T) {
 	handlerCounter := 0
 	expectedLocale := "de-DE"
-	expectedDBusSender := "foo-dbus-client"
-	expectedUserAgentCmd := "tester"
+	expectedIPCSender := "foo-varlink-client"
+	expectedCorrelationId := "test-correlation-id"
 
 	server := httptest.NewTLSServer(
 		// It is expected that GetServerStatus() will call only
@@ -55,7 +35,7 @@ func TestGetServerStatusClientInfo(t *testing.T) {
 
 			// Test request method
 			if req.Method != http.MethodGet {
-				t.Fatalf("extepected request method: %s, got: %s", http.MethodGet, req.Method)
+				t.Fatalf("expected request method: %s, got: %s", http.MethodGet, req.Method)
 			}
 
 			// Test that requested URL is correct
@@ -66,9 +46,13 @@ func TestGetServerStatusClientInfo(t *testing.T) {
 			}
 
 			// Test that HTTP headers are correct
-			xCorrelationId := req.Header.Get("X-Correlation-ID")
-			if xCorrelationId == "" {
-				t.Fatalf("X-Correlation-ID is empty string")
+			CorrelationId := req.Header.Get("Correlation-ID")
+			if CorrelationId == "" {
+				t.Fatalf("Correlation-ID is empty string")
+			}
+			RequestId := req.Header.Get("Request-ID")
+			if RequestId == "" {
+				t.Fatalf("Request-ID is empty string")
 			}
 			locale := req.Header.Get("Accept-Language")
 			if locale != expectedLocale {
@@ -76,9 +60,8 @@ func TestGetServerStatusClientInfo(t *testing.T) {
 			}
 			userAgent := req.Header.Get("User-Agent")
 			expectedUserAgent := fmt.Sprintf(
-				"RHSM/2.0 (cmd=%s) (dbus_sender=%s)",
-				expectedUserAgentCmd,
-				expectedDBusSender,
+				"unit-tester/0.1 (trigger-by: %s) foo-linux/10.0",
+				expectedIPCSender,
 			)
 			if userAgent != expectedUserAgent {
 				t.Fatalf("expected User-Agent HTTP header: %s, got: %s", expectedUserAgent, userAgent)
@@ -109,10 +92,8 @@ func TestGetServerStatusClientInfo(t *testing.T) {
 		t.Fatalf("unable to setup testing rhsm client: %s", err)
 	}
 
-	SetUserAgentCmd(expectedUserAgentCmd)
-
-	clientInfo := ClientInfo{expectedLocale, expectedDBusSender, ""}
-	serverStatus, err := rhsmClient.GetServerStatus(&clientInfo)
+	metadata := RequestMetadata{&expectedLocale, &expectedIPCSender, &expectedCorrelationId}
+	serverStatus, err := rhsmClient.GetServerStatus(&metadata)
 	if err != nil {
 		t.Fatalf("getting server status failed: %s", err)
 	}
@@ -183,8 +164,9 @@ func TestCreateHTTPsClientProxyFromConf(t *testing.T) {
 	rhsmClient.RHSMConf.Server.ProxyUser = "user"
 	rhsmClient.RHSMConf.Server.ProxyPassword = "secret"
 
-	clientInfo := ClientInfo{"", "", "66bf0b7a-aaae-4b31-a7bf-bc22052afebf"}
-	serverStatus, err := rhsmClient.GetServerStatus(&clientInfo)
+	correlationID := "66bf0b7a-aaae-4b31-a7bf-bc22052afebf"
+	metadata := RequestMetadata{nil, nil, &correlationID}
+	serverStatus, err := rhsmClient.GetServerStatus(&metadata)
 	if err != nil {
 		t.Fatalf("getting server status failed: %s", err)
 	}
