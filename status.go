@@ -17,15 +17,13 @@ type RHSMEndPoints struct {
 }
 
 // GetServerEndpoints tries to get list of supported server endpoints
-func (rhsmClient *RHSMClient) GetServerEndpoints(clientInfo *ClientInfo) (*[]RHSMEndPoints, error) {
+func (rhsmClient *RHSMClient) GetServerEndpoints(metadata *RequestMetadata) (*[]RHSMEndPoints, error) {
 	var rhsmEndPoints []RHSMEndPoints
 	var connection *RHSMConnection
 
 	var headers = make(map[string]string)
-	if clientInfo == nil {
-		clientInfo = &ClientInfo{"", "", ""}
-	}
-	clientInfo.xCorrelationId = createCorrelationId()
+
+	metadata = sanitizeMetadata(metadata)
 
 	_, err := rhsmClient.GetConsumerUUID()
 	if err == nil {
@@ -44,13 +42,14 @@ func (rhsmClient *RHSMClient) GetServerEndpoints(clientInfo *ClientInfo) (*[]RHS
 	}
 
 	res, err := connection.request(
+		rhsmClient.UserAgent,
 		http.MethodGet,
 		"",
 		"",
 		"",
 		&headers,
 		nil,
-		clientInfo,
+		metadata,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("unable to get server endpoints :%v", err)
@@ -105,15 +104,13 @@ type RHSMStatus struct {
 
 // GetServerStatus tries to get status from the server. This
 // method is possible to call, when server is connected or not
-func (rhsmClient *RHSMClient) GetServerStatus(clientInfo *ClientInfo) (*RHSMStatus, error) {
+func (rhsmClient *RHSMClient) GetServerStatus(metadata *RequestMetadata) (*RHSMStatus, error) {
 	var rhsmStatus RHSMStatus
 	var connection *RHSMConnection
 
 	var headers = make(map[string]string)
-	if clientInfo == nil {
-		clientInfo = &ClientInfo{"", "", ""}
-	}
-	clientInfo.xCorrelationId = createCorrelationId()
+
+	metadata = sanitizeMetadata(metadata)
 
 	_, err := rhsmClient.GetConsumerUUID()
 	if err == nil {
@@ -132,13 +129,14 @@ func (rhsmClient *RHSMClient) GetServerStatus(clientInfo *ClientInfo) (*RHSMStat
 	}
 
 	res, err := connection.request(
+		rhsmClient.UserAgent,
 		http.MethodGet,
 		"status",
 		"",
 		"",
 		&headers,
 		nil,
-		clientInfo,
+		metadata,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("unable to get server status :%v", err)

@@ -32,7 +32,7 @@ type OrganizationData struct {
 func (rhsmClient *RHSMClient) GetOrgs(
 	username string,
 	password string,
-	clientInfo *ClientInfo,
+	metadata *RequestMetadata,
 ) ([]OrganizationData, error) {
 	var organizations []OrganizationData
 	var headers = make(map[string]string)
@@ -40,10 +40,7 @@ func (rhsmClient *RHSMClient) GetOrgs(
 	headers["username"] = username
 	headers["password"] = password
 
-	if clientInfo == nil {
-		clientInfo = &ClientInfo{"", "", ""}
-	}
-	clientInfo.xCorrelationId = createCorrelationId()
+	metadata = sanitizeMetadata(metadata)
 
 	connection, err := rhsmClient.getNoAuthConnection()
 	if err != nil {
@@ -51,13 +48,14 @@ func (rhsmClient *RHSMClient) GetOrgs(
 	}
 
 	res, err := connection.request(
+		rhsmClient.UserAgent,
 		http.MethodGet,
 		"users/"+username+"/owners",
 		"",
 		"",
 		&headers,
 		nil,
-		clientInfo)
+		metadata)
 	if err != nil {
 		return organizations, fmt.Errorf("unable to get list of org IDs: %s", err)
 	}

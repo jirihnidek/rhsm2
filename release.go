@@ -192,6 +192,7 @@ func (rhsmClient *RHSMClient) getListingFile(listingPath string) (*string, error
 	}
 
 	resp, err := connection.request(
+		rhsmClient.UserAgent,
 		http.MethodGet,
 		listingPath,
 		"",
@@ -318,7 +319,7 @@ type Release struct {
 
 // setReleaseOnServer tries to set the release on the candlepin server only (not on the host in the variable
 // file in /etc/dnf/vars/).
-func (rhsmClient *RHSMClient) setReleaseOnServer(clientInfo *ClientInfo, release string) error {
+func (rhsmClient *RHSMClient) setReleaseOnServer(metadata *RequestMetadata, release string) error {
 	consumerUuid, err := rhsmClient.GetConsumerUUID()
 
 	if err != nil {
@@ -327,10 +328,7 @@ func (rhsmClient *RHSMClient) setReleaseOnServer(clientInfo *ClientInfo, release
 
 	var headers = make(map[string]string)
 
-	if clientInfo == nil {
-		clientInfo = &ClientInfo{"", "", ""}
-	}
-	clientInfo.xCorrelationId = createCorrelationId()
+	metadata = sanitizeMetadata(metadata)
 
 	headers["Content-type"] = "application/json"
 	consumerData := Release{
@@ -346,13 +344,14 @@ func (rhsmClient *RHSMClient) setReleaseOnServer(clientInfo *ClientInfo, release
 		return fmt.Errorf("unable to get consumer cert auth connection: %v", err)
 	}
 	res, err := connection.request(
+		rhsmClient.UserAgent,
 		http.MethodPut,
 		"consumers/"+*consumerUuid,
 		"",
 		"",
 		&headers,
 		&body,
-		clientInfo,
+		metadata,
 	)
 
 	if err != nil {
@@ -367,7 +366,7 @@ func (rhsmClient *RHSMClient) setReleaseOnServer(clientInfo *ClientInfo, release
 }
 
 // GetReleaseFromServer tries to get the latest release from the candlepin server.
-func (rhsmClient *RHSMClient) GetReleaseFromServer(clientInfo *ClientInfo) (string, error) {
+func (rhsmClient *RHSMClient) GetReleaseFromServer(metadata *RequestMetadata) (string, error) {
 	consumerUuid, err := rhsmClient.GetConsumerUUID()
 
 	if err != nil {
@@ -376,23 +375,21 @@ func (rhsmClient *RHSMClient) GetReleaseFromServer(clientInfo *ClientInfo) (stri
 
 	var headers = make(map[string]string)
 
-	if clientInfo == nil {
-		clientInfo = &ClientInfo{"", "", ""}
-	}
-	clientInfo.xCorrelationId = createCorrelationId()
+	metadata = sanitizeMetadata(metadata)
 
 	connection, err := rhsmClient.getCertAuthConnection()
 	if err != nil {
 		return "", fmt.Errorf("unable to get consumer cert auth connection: %v", err)
 	}
 	res, err := connection.request(
+		rhsmClient.UserAgent,
 		http.MethodGet,
 		"consumers/"+*consumerUuid+"/release",
 		"",
 		"",
 		&headers,
 		nil,
-		clientInfo,
+		metadata,
 	)
 
 	if err != nil {
@@ -441,9 +438,9 @@ func (rhsmClient *RHSMClient) getReleaseTags() ([]string, error) {
 	return requiredTags, nil
 }
 
-// GetCdnReleases tries to get the list of available releases from CDN. The list of releases is
+// GetCdnReleases tries to get the list of available releases from CDN. The list of releases
 // should include only unique values of releases. There should not be any duplicates.
-func (rhsmClient *RHSMClient) GetCdnReleases(clientInfo *ClientInfo) (map[string]struct{}, error) {
+func (rhsmClient *RHSMClient) GetCdnReleases(metadata *RequestMetadata) (map[string]struct{}, error) {
 	// If the connection to the repository does not exist, return error
 	_, err := rhsmClient.getEntitlementCertAuthConnection()
 	if err != nil {

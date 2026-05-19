@@ -144,7 +144,7 @@ type RegisterOptions struct {
 // registerSystem tries to register system
 func (rhsmClient *RHSMClient) registerSystem(
 	registerOptions *RegisterOptions,
-	clientInfo *ClientInfo,
+	metadata *RequestMetadata,
 ) (*ConsumerData, error) {
 	var headers = make(map[string]string)
 	var query string
@@ -224,13 +224,14 @@ func (rhsmClient *RHSMClient) registerSystem(
 	}
 
 	res, err := connection.request(
+		rhsmClient.UserAgent,
 		http.MethodPost,
 		"consumers",
 		query,
 		"",
 		&headers,
 		&body,
-		clientInfo)
+		metadata)
 
 	if err != nil {
 		return nil, err
@@ -304,7 +305,7 @@ func (rhsmClient *RHSMClient) registerSystem(
 		// there can be some content override associated with one of
 		// activation keys
 		getContentOverrides := registerOptions.activationKeys != nil
-		err = rhsmClient.enableContent(getContentOverrides, clientInfo)
+		err = rhsmClient.enableContent(getContentOverrides, metadata)
 		if err != nil {
 			return nil, err
 		}
@@ -321,19 +322,16 @@ func (rhsmClient *RHSMClient) RegisterOrgActivationKeys(
 	org *string,
 	activationKeys []string,
 	options *map[string]string,
-	clientInfo *ClientInfo,
+	metadata *RequestMetadata,
 ) (*ConsumerData, error) {
 	var registerOptions RegisterOptions
 
-	if clientInfo == nil {
-		clientInfo = &ClientInfo{"", "", ""}
-	}
-	clientInfo.xCorrelationId = createCorrelationId()
+	metadata = sanitizeMetadata(metadata)
 
 	registerOptions.organization = org
 	registerOptions.activationKeys = &activationKeys
 
-	return rhsmClient.registerSystem(&registerOptions, clientInfo)
+	return rhsmClient.registerSystem(&registerOptions, metadata)
 }
 
 // RegisterUsernamePassword tries to register system using username and password
@@ -341,7 +339,7 @@ func (rhsmClient *RHSMClient) RegisterUsernamePassword(
 	username *string,
 	password *string,
 	options *map[string]string,
-	clientInfo *ClientInfo,
+	metadata *RequestMetadata,
 ) (*ConsumerData, error) {
 	var registerOptions RegisterOptions
 	var environments []string
@@ -366,12 +364,9 @@ func (rhsmClient *RHSMClient) RegisterUsernamePassword(
 	registerOptions.organization = &org
 	registerOptions.environments = &environments
 
-	if clientInfo == nil {
-		clientInfo = &ClientInfo{"", "", ""}
-	}
-	clientInfo.xCorrelationId = createCorrelationId()
+	metadata = sanitizeMetadata(metadata)
 
-	return rhsmClient.registerSystem(&registerOptions, clientInfo)
+	return rhsmClient.registerSystem(&registerOptions, metadata)
 }
 
 // createProductMap tries to create map of entitlement certificates
@@ -405,7 +400,7 @@ type ContentOverridesResult struct {
 // enableContent tries to get SCA entitlement certificate and generate redhat.repo from these
 // certificates. Note: candlepin returns only one SCA certificate, but it returns it
 // in the list. Thus, in theory more certificates could be returned.
-func (rhsmClient *RHSMClient) enableContent(getContentOverrides bool, info *ClientInfo) error {
+func (rhsmClient *RHSMClient) enableContent(getContentOverrides bool, info *RequestMetadata) error {
 	var waitGroup sync.WaitGroup
 
 	// Try to get SCA entitlement certificate and key asynchronously
