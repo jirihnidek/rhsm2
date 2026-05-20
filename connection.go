@@ -168,6 +168,10 @@ func (connection *RHSMConnection) request(
 		req.Header.Add("Accept", "application/json")
 	}
 
+	// Add Keep-Alive headers
+	req.Header.Add("Connection", "keep-alive")
+	req.Header.Add("Keep-Alive", "timeout=60")
+
 	if headers != nil {
 		for key, value := range *headers {
 			req.Header.Add(key, value)
