@@ -9,8 +9,8 @@ import (
 	"github.com/google/uuid"
 )
 
-// TestCreateXCorrelationID test the createCorrelationId()
-func TestCreateXCorrelationID(t *testing.T) {
+// TestCreateCorrelationID test the createCorrelationId()
+func TestCreateCorrelationID(t *testing.T) {
 	xCorrelationId := createCorrelationId()
 	err := uuid.Validate(xCorrelationId)
 	if err != nil {
@@ -43,6 +43,24 @@ func TestGetServerStatusMetadata(t *testing.T) {
 			reqURL := req.URL.String()
 			if reqURL != expectedURL {
 				t.Fatalf("expected request URL: %s, got: %s", expectedURL, reqURL)
+			}
+
+			// Test that request contains Connection header
+			connectionHeader := req.Header.Get("Connection")
+			if connectionHeader == "" {
+				t.Fatalf("Connection header is missing")
+			}
+			if connectionHeader != "keep-alive" {
+				t.Fatalf("expected Connection header: %s, got: %s", "keep-alive", connectionHeader)
+			}
+
+			// Test that request contains Keep-Alive header
+			keepAliveTimeout := req.Header.Get("Keep-Alive")
+			if keepAliveTimeout == "" {
+				t.Fatalf("Keep-Alive header is missing")
+			}
+			if keepAliveTimeout != "timeout=60" {
+				t.Fatalf("expected Keep-Alive timeout: %s, got: %s", "timeout=60", keepAliveTimeout)
 			}
 
 			// Test that HTTP headers are correct
