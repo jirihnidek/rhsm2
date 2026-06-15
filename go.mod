@@ -8,7 +8,7 @@ require (
 	github.com/henvic/httpretty v0.1.4
 	github.com/jeandeaual/go-locale v0.0.0-20250612000132-0ef82f21eade
 	github.com/rs/zerolog v1.35.1
-	gopkg.in/ini.v1 v1.67.2
+	gopkg.in/ini.v1 v1.67.3
 )
 
 require (
