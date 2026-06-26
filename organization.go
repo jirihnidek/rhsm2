@@ -72,3 +72,47 @@ func (rhsmClient *RHSMClient) GetOrgs(
 
 	return organizations, nil
 }
+
+// GetOrg tries to get a current organization for the current consumer
+func (rhsmClient *RHSMClient) GetOrg(metadata *RequestMetadata) (*OrganizationData, error) {
+	consumerUuid, err := rhsmClient.GetConsumerUUID()
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to get consumer certificate: %v", err)
+	}
+
+	var headers = make(map[string]string)
+	metadata = sanitizeMetadata(metadata)
+
+	connection, err := rhsmClient.getCertAuthConnection()
+	if err != nil {
+		return nil, fmt.Errorf("unable to get consumer cert auth connection: %v", err)
+	}
+
+	res, err := connection.request(
+		rhsmClient.UserAgent,
+		http.MethodGet,
+		"consumers/"+*consumerUuid+"/owner",
+		"",
+		"",
+		&headers,
+		nil,
+		metadata)
+
+	if err != nil {
+		return nil, fmt.Errorf("unable to get organization: %s", err)
+	}
+
+	resBody, err := getResponseBody(res)
+	if err != nil {
+		return nil, err
+	}
+
+	var organization OrganizationData
+	err = json.Unmarshal([]byte(*resBody), &organization)
+	if err != nil {
+		return nil, fmt.Errorf("unable to unmarshal organization: %s", err)
+	}
+
+	return &organization, nil
+}
