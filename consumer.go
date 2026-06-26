@@ -34,18 +34,8 @@ type ConsumerData struct {
 		Href              string `json:"href"`
 		ContentAccessMode string `json:"contentAccessMode"`
 	} `json:"owner"`
-	Environment struct {
-		Created            interface{} `json:"created"`
-		Updated            interface{} `json:"updated"`
-		Id                 interface{} `json:"id"`
-		Name               string      `json:"name"`
-		Type               interface{} `json:"type"`
-		Description        interface{} `json:"description"`
-		ContentPrefix      interface{} `json:"contentPrefix"`
-		Owner              interface{} `json:"owner"`
-		EnvironmentContent interface{} `json:"environmentContent"`
-	} `json:"environment"`
-	EntitlementCount int `json:"entitlementCount"`
+	Environment      Environment `json:"environment"`
+	EntitlementCount int         `json:"entitlementCount"`
 	Facts            struct {
 	} `json:"facts"`
 	LastCheckin       interface{} `json:"lastCheckin"`
@@ -83,23 +73,7 @@ type ConsumerData struct {
 	Href           string        `json:"href"`
 	ActivationKeys []interface{} `json:"activationKeys"`
 	ServiceType    interface{}   `json:"serviceType"`
-	Environments   []struct {
-		Created       string      `json:"created"`
-		Updated       string      `json:"updated"`
-		Id            string      `json:"id"`
-		Name          string      `json:"name"`
-		Type          interface{} `json:"type"`
-		Description   string      `json:"description"`
-		ContentPrefix interface{} `json:"contentPrefix"`
-		Owner         struct {
-			Id                string `json:"id"`
-			Key               string `json:"key"`
-			DisplayName       string `json:"displayName"`
-			Href              string `json:"href"`
-			ContentAccessMode string `json:"contentAccessMode"`
-		} `json:"owner"`
-		EnvironmentContent []interface{} `json:"environmentContent"`
-	} `json:"environments"`
+	Environments   []Environment `json:"environments"`
 }
 
 // GetConsumer tries to get consumer data from the candlepin server
