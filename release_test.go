@@ -1096,7 +1096,7 @@ func Test_SetRelease(t *testing.T) {
 				t.Fatalf("unable to setup testing rhsm client: %s", err)
 			}
 
-			err = rhsmClient.SetRelease(tt.releaseVer)
+			err = rhsmClient.SetRelease(tt.releaseVer, nil)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("SetRelease() error = %v, wantErr %v", err, tt.wantErr)
 				return
@@ -1207,7 +1207,7 @@ func Test_GetDnfVarsRelease(t *testing.T) {
 			setupFile: false,
 			content:   "",
 			want:      "",
-			wantErr:   true,
+			wantErr:   false,
 		},
 	}
 

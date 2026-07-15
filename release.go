@@ -185,11 +185,13 @@ func (rhsmClient *RHSMClient) filterInstalledProductsUsingOSRelease(installedPro
 }
 
 // getListingFile tries to get the content of the 'listing' file from CDN
-func (rhsmClient *RHSMClient) getListingFile(listingPath string) (*string, error) {
+func (rhsmClient *RHSMClient) getListingFile(listingPath string, metadata *RequestMetadata) (*string, error) {
 	connection, err := rhsmClient.getEntitlementCertAuthConnection()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get entitlement cert auth connection: %s", err)
 	}
+
+	metadata = sanitizeMetadata(metadata)
 
 	resp, err := connection.request(
 		rhsmClient.UserAgent,
@@ -199,7 +201,7 @@ func (rhsmClient *RHSMClient) getListingFile(listingPath string) (*string, error
 		"",
 		nil,
 		nil,
-		nil,
+		metadata,
 	)
 	if err != nil {
 		return nil, err
@@ -248,13 +250,13 @@ func (rhsmClient *RHSMClient) setDnfVarsRelease(release string) error {
 // SetRelease tries to set the release on the host in the variable file /etc/dnf/vars/releasever.
 // It also tries to set the release on the candlepin server. The set release on the server is done
 // asynchronously.
-func (rhsmClient *RHSMClient) SetRelease(release string) error {
+func (rhsmClient *RHSMClient) SetRelease(release string, metadata *RequestMetadata) error {
 	err := rhsmClient.setDnfVarsRelease(release)
 	if err != nil {
 		return err
 	}
 	go func() {
-		err := rhsmClient.setReleaseOnServer(nil, release)
+		err := rhsmClient.setReleaseOnServer(metadata, release)
 		if err != nil {
 			log.Warn().Msgf("unable to set release on server: %s", err)
 		}
@@ -293,8 +295,12 @@ func (rhsmClient *RHSMClient) UnsetRelease() error {
 }
 
 // GetDnfVarsRelease tries to get the release from the host in the variable file /etc/dnf/vars/releasever.
-// If the file does not exist, it returns an empty string and error.
+// If the file does not exist, it returns an empty string and nil. When the file exists, and it is not possible
+// to read the file, then the function returns an error.
 func (rhsmClient *RHSMClient) GetDnfVarsRelease() (string, error) {
+	if _, err := os.Stat(rhsmClient.RHSMConf.dnfVarsReleaseFilePath); os.IsNotExist(err) {
+		return "", nil
+	}
 	releaseFile, err := os.Open(rhsmClient.RHSMConf.dnfVarsReleaseFilePath)
 	if err != nil {
 		return "", fmt.Errorf("unable to open file %s: %s", rhsmClient.RHSMConf.dnfVarsReleaseFilePath, err)
@@ -434,7 +440,7 @@ func (rhsmClient *RHSMClient) getReleaseTags() ([]string, error) {
 	}
 	log.Debug().Msgf("trying to get release tags from installed products: %v", installedProductFilePaths)
 
-	requiredTags := createListOfContentTags(installedProducts)
+	requiredTags := createListOfContentTags(filteredInstalledProducts)
 	return requiredTags, nil
 }
 
@@ -469,7 +475,7 @@ func (rhsmClient *RHSMClient) GetCdnReleases(metadata *RequestMetadata) (map[str
 
 	listingPaths := getListingPathFromEngProducts(engineeringProductsMap, releaseTags)
 
-	releases := rhsmClient.getAllReleasesFromPaths(listingPaths)
+	releases := rhsmClient.getAllReleasesFromPaths(listingPaths, metadata)
 
 	return releases, nil
 }
@@ -477,11 +483,11 @@ func (rhsmClient *RHSMClient) GetCdnReleases(metadata *RequestMetadata) (map[str
 // getAllReleasesFromPaths tries to get the list of available releases from given content paths.
 // The list of releases should include only unique values of releases. There should not be
 // any duplicates.
-func (rhsmClient *RHSMClient) getAllReleasesFromPaths(listingPaths map[string]struct{}) map[string]struct{} {
+func (rhsmClient *RHSMClient) getAllReleasesFromPaths(listingPaths map[string]struct{}, metadata *RequestMetadata) map[string]struct{} {
 	var releaseMap = make(map[string]struct{})
 	for path := range listingPaths {
 		listingPath := filepath.Join(path, "/listing")
-		respBody, err := rhsmClient.getListingFile(listingPath)
+		respBody, err := rhsmClient.getListingFile(listingPath, metadata)
 		if err != nil {
 			log.Warn().Msgf("failed to retrieve listing file from path: %s: %s", path, err)
 			continue
