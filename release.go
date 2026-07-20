@@ -239,6 +239,7 @@ func (rhsmClient *RHSMClient) setDnfVarsRelease(release string) error {
 			log.Warn().Msgf("unable to close file: %s", err)
 		}
 	}(releaseFile)
+
 	_, err = releaseFile.WriteString(release)
 	if err != nil {
 		return err
@@ -249,8 +250,17 @@ func (rhsmClient *RHSMClient) setDnfVarsRelease(release string) error {
 
 // SetRelease tries to set the release on the host in the variable file /etc/dnf/vars/releasever.
 // It also tries to set the release on the candlepin server. The set release on the server is done
-// asynchronously.
+// asynchronously. When the release is set to "", then delete the release file.
 func (rhsmClient *RHSMClient) SetRelease(release string, metadata *RequestMetadata) error {
+	// When the release is empty, then try to delete the release file.
+	if release == "" {
+		err := rhsmClient.UnsetRelease()
+		if err != nil {
+			return err
+		}
+		return nil
+	}
+
 	err := rhsmClient.setDnfVarsRelease(release)
 	if err != nil {
 		return err
