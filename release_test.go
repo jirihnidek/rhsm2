@@ -1041,6 +1041,15 @@ func Test_SetRelease(t *testing.T) {
 			wantErr:        false,
 		},
 		{
+			name:           "successful set release to '' on registered system (unset)",
+			releaseVer:     "",
+			setupFiles:     true,
+			setupHTTP:      true,
+			statusCode:     204,
+			serverResponse: ``,
+			wantErr:        false,
+		},
+		{
 			name:           "server error on registered system",
 			releaseVer:     "11.5",
 			setupFiles:     true,
@@ -1052,6 +1061,13 @@ func Test_SetRelease(t *testing.T) {
 		{
 			name:       "set on unregistered system",
 			releaseVer: "11.5",
+			setupFiles: false,
+			setupHTTP:  false,
+			wantErr:    false,
+		},
+		{
+			name:       "set to '' on unregistered system (unset)",
+			releaseVer: "",
 			setupFiles: false,
 			setupHTTP:  false,
 			wantErr:    false,
@@ -1103,15 +1119,23 @@ func Test_SetRelease(t *testing.T) {
 			}
 
 			if !tt.wantErr {
-				content, err := os.ReadFile(testingFiles.DnfVarsReleaseFilePath)
-				if err != nil {
-					t.Errorf("unable to read release version file: %s", err)
-					return
-				}
-				gotContent := string(content)
-				if gotContent != tt.releaseVer {
-					t.Errorf("unexpected content of release version file: got %s, want %s",
-						gotContent, tt.releaseVer)
+				if tt.releaseVer != "" {
+					content, err := os.ReadFile(testingFiles.DnfVarsReleaseFilePath)
+					if err != nil {
+						t.Errorf("unable to read release version file: %s", err)
+						return
+					}
+					gotContent := string(content)
+					if gotContent != tt.releaseVer {
+						t.Errorf("unexpected content of release version file: got %s, want %s",
+							gotContent, tt.releaseVer)
+					}
+				} else {
+					_, err = os.Stat(testingFiles.DnfVarsReleaseFilePath)
+					fileExists := !os.IsNotExist(err)
+					if fileExists == true {
+						t.Errorf("Release file exists after setting release to ''")
+					}
 				}
 			}
 		})
