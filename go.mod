@@ -5,7 +5,7 @@ go 1.25.0
 require (
 	github.com/creasty/defaults v1.8.0
 	github.com/google/uuid v1.6.0
-	github.com/henvic/httpretty v0.1.4
+	github.com/henvic/httpretty v0.2.0
 	github.com/jeandeaual/go-locale v0.0.0-20250612000132-0ef82f21eade
 	github.com/rs/zerolog v1.35.1
 	gopkg.in/ini.v1 v1.67.3
