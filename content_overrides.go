@@ -11,20 +11,20 @@ import (
 
 const dnf5ReposOverrideDirPath = "/etc/dnf/repos.override.d"
 const dnf5ReposOverrideFileName = "98-redhat.repo"
-const dnf5RedHatReposOverrideFilePath = dnf5ReposOverrideDirPath + "/" + dnf5ReposOverrideFileName
+const Dnf5RedHatReposOverrideFilePath = dnf5ReposOverrideDirPath + "/" + dnf5ReposOverrideFileName
 
 // ContentOverride is a structure containing information about content
 // override for a given repository
 type ContentOverride struct {
-	Created      string `json:"created"`
-	Updated      string `json:"updated"`
+	Created      string `json:"created,omitempty"`
+	Updated      string `json:"updated,omitempty"`
 	Name         string `json:"name"`
 	ContentLabel string `json:"contentLabel"`
 	Value        string `json:"value"`
 }
 
-// getContentOverrides tries to get content overrides from server
-func (rhsmClient *RHSMClient) getContentOverrides(info *RequestMetadata) ([]ContentOverride, error) {
+// GetContentOverrides tries to get content overrides from server
+func (rhsmClient *RHSMClient) GetContentOverrides(info *RequestMetadata) ([]ContentOverride, error) {
 	var contentOverrides []ContentOverride
 
 	consumerUuid, err := rhsmClient.GetConsumerUUID()
@@ -77,9 +77,10 @@ func (rhsmClient *RHSMClient) getContentOverrides(info *RequestMetadata) ([]Cont
 	return contentOverrides, nil
 }
 
-// readContentOverridesFromDnf5RepoOverride tries to read content overrides from dnf5 repo override file
+// readDnf5RepoOverrides tries to read content overrides from dnf5 repo override file.
 // We try to read repo overrides using ini package. Hopefully, it will work without any issue.
-func readContentOverridesFromDnf5RepoOverride(filePath string) (map[string]map[string]string, error) {
+// It returns a map of repoId -> {key: value} representing the INI sections and their keys.
+func readDnf5RepoOverrides(filePath string) (map[string]map[string]string, error) {
 	repo, err := ini.Load(filePath)
 	if err != nil {
 		return nil, err
@@ -100,8 +101,29 @@ func readContentOverridesFromDnf5RepoOverride(filePath string) (map[string]map[s
 	return result, nil
 }
 
-// writeContentOverridesToDnf5RepoOverride tries to write content overrides to dnf5 repo override file
-func writeContentOverridesToDnf5RepoOverride(contentOverrides []ContentOverride, filePath string) error {
+// ReadLocalContentOverrides reads the DNF5 repo override file at the given path
+// and returns its contents as a slice of ContentOverride structs.
+func ReadLocalContentOverrides(filePath string) ([]ContentOverride, error) {
+	repoOverrides, err := readDnf5RepoOverrides(filePath)
+	if err != nil {
+		return nil, err
+	}
+
+	var overrides []ContentOverride
+	for label, override := range repoOverrides {
+		for name, value := range override {
+			overrides = append(overrides, ContentOverride{
+				ContentLabel: label,
+				Name:         name,
+				Value:        value,
+			})
+		}
+	}
+	return overrides, nil
+}
+
+// WriteDnf5RepoOverrides writes content overrides to a dnf5 repo override file in INI format.
+func WriteDnf5RepoOverrides(contentOverrides []ContentOverride, filePath string) error {
 	// First, create empty ini file object
 	repo := ini.Empty()
 
@@ -142,6 +164,58 @@ func writeContentOverridesToDnf5RepoOverride(contentOverrides []ContentOverride,
 	}
 
 	return nil
+}
+
+// SendContentOverrides sends content overrides to the candlepin server via PUT request.
+// The overrides are sent to the consumers/{uuid}/content_overrides endpoint.
+func (rhsmClient *RHSMClient) SendContentOverrides(overrides []ContentOverride, info *RequestMetadata) error {
+	consumerUuid, err := rhsmClient.GetConsumerUUID()
+	if err != nil {
+		return err
+	}
+
+	headers := map[string]string{"Content-type": "application/json"}
+
+	info = sanitizeMetadata(info)
+
+	body, err := json.Marshal(overrides)
+	if err != nil {
+		return fmt.Errorf("unable to marshal content overrides: %s", err)
+	}
+
+	connection, err := rhsmClient.getCertAuthConnection()
+	if err != nil {
+		return fmt.Errorf("unable to get consumer cert auth connection: %v", err)
+	}
+	res, err := connection.request(
+		rhsmClient.UserAgent,
+		http.MethodPut,
+		"consumers/"+*consumerUuid+"/content_overrides",
+		"",
+		"",
+		&headers,
+		&body,
+		info,
+	)
+	if err != nil {
+		return fmt.Errorf("unable to put content overrides: %s", err)
+	}
+
+	switch res.StatusCode {
+	case 200:
+		return nil
+	case 403:
+		log.Error().Msgf("insufficient permissions")
+		return fmt.Errorf("unable to put content overrides: insufficient permissions")
+	case 404:
+		log.Error().Msgf("consumer with UUID: %s could not be found", *consumerUuid)
+		return fmt.Errorf("unable to put content overrides: consumer not found")
+	case 500:
+		log.Error().Msgf("an unexpected exception has occurred")
+		return fmt.Errorf("unable to put content overrides: internal server error")
+	default:
+		return fmt.Errorf("unable to put content overrides: unexpected status code %d", res.StatusCode)
+	}
 }
 
 // createMapFromContentOverrides creates the map with content overrides from the list of

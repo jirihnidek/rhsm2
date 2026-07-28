@@ -34,7 +34,7 @@ func TestGetContentOverrides(t *testing.T) {
 	handlerCounter := 0
 
 	server := httptest.NewTLSServer(
-		// It is expected that getContentOverrides() will call only
+		// It is expected that GetContentOverrides() will call only
 		// one REST API point
 		http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
 			// Increase number of calls
@@ -76,7 +76,7 @@ func TestGetContentOverrides(t *testing.T) {
 		t.Fatalf("unable to setup testing rhsm client: %s", err)
 	}
 
-	contentOverrides, err := rhsmClient.getContentOverrides(nil)
+	contentOverrides, err := rhsmClient.GetContentOverrides(nil)
 	if err != nil {
 		t.Fatalf("unable to get list of content overrides: %s", err)
 	}
@@ -98,7 +98,7 @@ func TestGetContentOverridesInsufficientPermissions(t *testing.T) {
 	handlerCounter := 0
 
 	server := httptest.NewTLSServer(
-		// It is expected that getContentOverrides() will call only
+		// It is expected that GetContentOverrides() will call only
 		// one REST API point
 		http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
 			// Increase number of calls
@@ -140,7 +140,7 @@ func TestGetContentOverridesInsufficientPermissions(t *testing.T) {
 		t.Fatalf("unable to setup testing rhsm client: %s", err)
 	}
 
-	_, err = rhsmClient.getContentOverrides(nil)
+	_, err = rhsmClient.GetContentOverrides(nil)
 	if err == nil {
 		t.Fatalf("no error raised, when server responses with 403 status code")
 	}
@@ -154,7 +154,7 @@ func TestGetContentOverridesWrongConsumer(t *testing.T) {
 	handlerCounter := 0
 
 	server := httptest.NewTLSServer(
-		// It is expected that getContentOverrides() will call only
+		// It is expected that GetContentOverrides() will call only
 		// one REST API point
 		http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
 			// Increase number of calls
@@ -196,7 +196,7 @@ func TestGetContentOverridesWrongConsumer(t *testing.T) {
 		t.Fatalf("unable to setup testing rhsm client: %s", err)
 	}
 
-	_, err = rhsmClient.getContentOverrides(nil)
+	_, err = rhsmClient.GetContentOverrides(nil)
 	if err == nil {
 		t.Fatalf("no error raised, when server responses with 404 status code")
 	}
@@ -210,7 +210,7 @@ func TestGetContentOverridesInternalServerError(t *testing.T) {
 	handlerCounter := 0
 
 	server := httptest.NewTLSServer(
-		// It is expected that getContentOverrides() will call only
+		// It is expected that GetContentOverrides() will call only
 		// one REST API point
 		http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
 			// Increase number of calls
@@ -252,9 +252,196 @@ func TestGetContentOverridesInternalServerError(t *testing.T) {
 		t.Fatalf("unable to setup testing rhsm client: %s", err)
 	}
 
-	_, err = rhsmClient.getContentOverrides(nil)
+	_, err = rhsmClient.GetContentOverrides(nil)
 	if err == nil {
 		t.Fatalf("no error raised, when server responses with 500 status code")
+	}
+}
+
+// TestSendContentOverrides tests the case when content overrides are
+// successfully sent to the server via PUT request
+func TestSendContentOverrides(t *testing.T) {
+	t.Parallel()
+	var expectedClientUUID = "5e9745d5-624d-4af1-916e-2c17df4eb4e8"
+	handlerCounter := 0
+
+	server := httptest.NewTLSServer(
+		http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
+			handlerCounter += 1
+
+			if req.Method != http.MethodPut {
+				t.Fatalf("expected request method: %s, got: %s", http.MethodPut, req.Method)
+			}
+
+			expectedURL := "/consumers/" + expectedClientUUID + "/content_overrides"
+			reqURL := req.URL.String()
+			if reqURL != expectedURL {
+				t.Fatalf("expected request URL: %s, got: %s", expectedURL, reqURL)
+			}
+
+			if req.Header.Get("Content-Type") != "application/json" {
+				t.Fatalf("expected Content-Type: application/json, got: %s", req.Header.Get("Content-Type"))
+			}
+
+			rw.WriteHeader(200)
+			_, _ = rw.Write([]byte(contentOverridesList))
+		}))
+	defer server.Close()
+
+	tempDirFilePath := t.TempDir()
+
+	testingFiles, err := setupTestingFileSystem(
+		tempDirFilePath, false, true, true, false, true)
+	if err != nil {
+		t.Fatalf("unable to setup testing environment: %s", err)
+	}
+
+	rhsmClient, err := setupTestingRHSMClient(testingFiles, server, nil)
+	if err != nil {
+		t.Fatalf("unable to setup testing rhsm client: %s", err)
+	}
+
+	// Define content overrides to be sent to the server
+	overrides := []ContentOverride{
+		{ContentLabel: "foobar-123", Name: "enabled", Value: "1"},
+	}
+
+	err = rhsmClient.SendContentOverrides(overrides, nil)
+	if err != nil {
+		t.Fatalf("unable to send content overrides: %s", err)
+	}
+
+	if handlerCounter != 1 {
+		t.Fatalf("handler called: %d, expected 1 call", handlerCounter)
+	}
+}
+
+func TestSendContentOverridesErrors(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name       string
+		statusCode int
+		response   string
+	}{
+		{"forbidden", 403, response403},
+		{"not found", 404, response404},
+		{"internal server error", 500, response500},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			server := httptest.NewTLSServer(
+				http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
+					rw.WriteHeader(tt.statusCode)
+					_, _ = rw.Write([]byte(tt.response))
+				}))
+			defer server.Close()
+
+			tempDirFilePath := t.TempDir()
+			testingFiles, err := setupTestingFileSystem(
+				tempDirFilePath, false, true, true, false, true)
+			if err != nil {
+				t.Fatalf("unable to setup testing environment: %s", err)
+			}
+
+			rhsmClient, err := setupTestingRHSMClient(testingFiles, server, nil)
+			if err != nil {
+				t.Fatalf("unable to setup testing rhsm client: %s", err)
+			}
+
+			overrides := []ContentOverride{
+				{ContentLabel: "awesomeos-801", Name: "enabled", Value: "1"},
+			}
+
+			err = rhsmClient.SendContentOverrides(overrides, nil)
+			if err == nil {
+				t.Fatalf("no error raised when server responds with %d status code", tt.statusCode)
+			}
+		})
+	}
+}
+
+// TestReadLocalContentOverrides tests reading local overrides and converting to ContentOverride slice
+func TestReadLocalContentOverrides(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name        string
+		fileContent string
+		wantCount   int
+		wantErr     bool
+	}{
+		{
+			"empty file",
+			"",
+			0,
+			false,
+		},
+		{
+			"single override",
+			"[awesome-os-801]\nenabled = 1\n",
+			1,
+			false,
+		},
+		{
+			"multiple overrides same repo",
+			"[awesome-os-801]\nenabled = 1\ngpgcheck = 0\n",
+			2,
+			false,
+		},
+		{
+			"multiple repos",
+			"[awesome-os-801]\nenabled = 1\n\n[cool-os-801]\ngpgcheck = 0\n",
+			2,
+			false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tempDir := t.TempDir()
+			filePath := tempDir + "/98-redhat.repo"
+
+			err := os.WriteFile(filePath, []byte(tt.fileContent), 0644)
+			if err != nil {
+				t.Fatalf("failed to write test file: %v", err)
+			}
+
+			overrides, err := ReadLocalContentOverrides(filePath)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("ReadLocalContentOverrides() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if len(overrides) != tt.wantCount {
+				t.Errorf("ReadLocalContentOverrides() returned %d overrides, want %d", len(overrides), tt.wantCount)
+				return
+			}
+
+			for _, o := range overrides {
+				if o.ContentLabel == "" {
+					t.Errorf("ReadLocalContentOverrides() returned override with empty ContentLabel")
+				}
+				if o.Name == "" {
+					t.Errorf("ReadLocalContentOverrides() returned override with empty Name")
+				}
+				if o.Value == "" {
+					t.Errorf("ReadLocalContentOverrides() returned override with empty Value")
+				}
+			}
+		})
+	}
+}
+
+// TestReadLocalContentOverridesFileNotFound tests that a missing file returns an error
+func TestReadLocalContentOverridesFileNotFound(t *testing.T) {
+	t.Parallel()
+
+	_, err := ReadLocalContentOverrides("/nonexistent/path/98-redhat.repo")
+	if err == nil {
+		t.Fatalf("expected error when file does not exist, got nil")
 	}
 }
 
@@ -322,8 +509,8 @@ func Test_createMapFromContentOverrides(t *testing.T) {
 	}
 }
 
-// Test_writeContentOverridesToDnf5RepoOverride tests writing content overrides to DNF5 repo override file
-func Test_writeContentOverridesToDnf5RepoOverride(t *testing.T) {
+// TestWriteDnf5RepoOverrides tests writing content overrides to DNF5 repo override file
+func TestWriteDnf5RepoOverrides(t *testing.T) {
 	t.Parallel()
 	type args struct {
 		contentOverrides []ContentOverride
@@ -418,9 +605,9 @@ func Test_writeContentOverridesToDnf5RepoOverride(t *testing.T) {
 			tempDir := t.TempDir()
 			filePath := tempDir + "/repo_overrides.repo"
 
-			err := writeContentOverridesToDnf5RepoOverride(tt.args.contentOverrides, filePath)
+			err := WriteDnf5RepoOverrides(tt.args.contentOverrides, filePath)
 			if (err != nil) != tt.wantErr {
-				t.Errorf("writeContentOverridesToDnf5RepoOverride() error = %v, wantErr %v", err, tt.wantErr)
+				t.Errorf("WriteDnf5RepoOverrides() error = %v, wantErr %v", err, tt.wantErr)
 			}
 
 			// Read the content of the file
@@ -468,8 +655,9 @@ func Test_writeContentOverridesToDnf5RepoOverride(t *testing.T) {
 	}
 }
 
-// Test_readContentOverridesFromDnf5RepoOverride tests reading content overrides from DNF5 repo override file
-func Test_readContentOverridesFromDnf5RepoOverride(t *testing.T) {
+// TestReadDnf5RepoOverrides tests reading content overrides from DNF5 repo override file
+func TestReadDnf5RepoOverrides(t *testing.T) {
+	// Tests the private readDnf5RepoOverrides function (same package)
 	t.Parallel()
 	type args struct {
 		fileContent string
@@ -545,13 +733,13 @@ func Test_readContentOverridesFromDnf5RepoOverride(t *testing.T) {
 				t.Fatalf("failed to write test file: %v", err)
 			}
 
-			got, err := readContentOverridesFromDnf5RepoOverride(filePath)
+			got, err := readDnf5RepoOverrides(filePath)
 			if (err != nil) != tt.wantErr {
-				t.Errorf("readContentOverridesFromDnf5RepoOverride() error = %v, wantErr %v", err, tt.wantErr)
+				t.Errorf("readDnf5RepoOverrides() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
 			if !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("readContentOverridesFromDnf5RepoOverride() = %v, want %v", got, tt.want)
+				t.Errorf("readDnf5RepoOverrides() = %v, want %v", got, tt.want)
 			}
 		})
 	}
