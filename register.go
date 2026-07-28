@@ -329,7 +329,7 @@ func (rhsmClient *RHSMClient) enableContent(getContentOverrides bool, info *Requ
 		waitGroup.Add(1)
 		go func(wg *sync.WaitGroup, result chan ContentOverridesResult) {
 			defer wg.Done()
-			contentOverridesList, err := rhsmClient.getContentOverrides(info)
+			contentOverridesList, err := rhsmClient.GetContentOverrides(info)
 			contentOverridesResult := ContentOverridesResult{contentOverridesList, err}
 			result <- contentOverridesResult
 		}(&waitGroup, contentOverridesChan)
@@ -359,9 +359,9 @@ func (rhsmClient *RHSMClient) enableContent(getContentOverrides bool, info *Requ
 				return contentOverridesResult.err
 			}
 			if len(contentOverridesResult.contentOverridesList) > 0 {
-				err := writeContentOverridesToDnf5RepoOverride(
+				err := WriteDnf5RepoOverrides(
 					contentOverridesResult.contentOverridesList,
-					dnf5RedHatReposOverrideFilePath,
+					Dnf5RedHatReposOverrideFilePath,
 				)
 				if err != nil {
 					log.Warn().Msgf("unable to write content overrides to repo file: %s", err)
