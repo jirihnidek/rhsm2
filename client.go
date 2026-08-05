@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/rs/zerolog/log"
 )
@@ -29,6 +30,7 @@ type RHSMClient struct {
 	RHSMConf                      *RHSMConf
 	noAuthConnection              *RHSMConnection
 	consumerCertAuthConnection    *RHSMConnection
+	consumerCertLastModTime       time.Time
 	entitlementCertAuthConnection *RHSMConnection
 }
 

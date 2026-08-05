@@ -463,6 +463,12 @@ func setupTestingRHSMClient(testingFiles *TestingFileSystem, server *httptest.Se
 			ServerPrefix:   &prefix,
 		}
 
+		consumerCertFilePath := filepath.Join(rhsmClient.RHSMConf.RHSM.ConsumerCertDir, "cert.pem")
+		fileInfo, _ := os.Stat(consumerCertFilePath)
+		if fileInfo != nil {
+			rhsmClient.consumerCertLastModTime = fileInfo.ModTime()
+		}
+
 	}
 	if cdn != nil {
 		// Get the hostname, port and prefix from the fake server
