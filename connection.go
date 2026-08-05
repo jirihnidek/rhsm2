@@ -11,6 +11,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/henvic/httpretty"
@@ -344,17 +345,44 @@ func (rhsmClient *RHSMClient) createNoAuthConnection(
 	return nil
 }
 
+// Try to close the connection
+func closeConnection(connection *RHSMConnection) {
+	if connection != nil {
+		log.Debug().Msgf("closing connection %v", connection)
+		connection.Client.CloseIdleConnections()
+	}
+}
+
 // getCertAuthConnection tries to get the current consumer cert auth connection. When the connection
 // does not exist, it creates a new one using the provided configuration.
 func (rhsmClient *RHSMClient) getCertAuthConnection() (*RHSMConnection, error) {
+	consumerCertFilePath := filepath.Join(rhsmClient.RHSMConf.RHSM.ConsumerCertDir, "cert.pem")
+
+	// Try to get the current consumer cert auth connection
 	if rhsmClient.consumerCertAuthConnection != nil {
-		return rhsmClient.consumerCertAuthConnection, nil
+		// Check if the consumer cert file has been modified
+		fileInfo, err := os.Stat(consumerCertFilePath)
+		if err != nil {
+			closeConnection(rhsmClient.consumerCertAuthConnection)
+			return nil, fmt.Errorf("consumer certificate %s does not exists", consumerCertFilePath)
+		}
+		modTime := fileInfo.ModTime()
+		if modTime.After(rhsmClient.consumerCertLastModTime) {
+			log.Info().Msgf("consumer cert file %s has been modified", consumerCertFilePath)
+			closeConnection(rhsmClient.consumerCertAuthConnection)
+			rhsmClient.consumerCertAuthConnection = nil
+		} else {
+			// It is probably not necessary to create a new connection
+			return rhsmClient.consumerCertAuthConnection, nil
+		}
 	}
+
+	log.Debug().Msgf("trying to create a new consumer cert auth connection")
 
 	hostname := &rhsmClient.RHSMConf.Server.Hostname
 	port := &rhsmClient.RHSMConf.Server.Port
 	prefix := &rhsmClient.RHSMConf.Server.Prefix
-	consumerCertFilePath := filepath.Join(rhsmClient.RHSMConf.RHSM.ConsumerCertDir, "cert.pem")
+
 	if _, err := os.Stat(consumerCertFilePath); err != nil {
 		return nil, fmt.Errorf("consumer certificate %s does not exists", consumerCertFilePath)
 	}
@@ -392,6 +420,17 @@ func (rhsmClient *RHSMClient) createCertAuthConnection(
 		ServerHostname: hostname,
 		ServerPort:     port,
 		ServerPrefix:   prefix,
+	}
+
+	// Get the time of the last change of certFilePath
+	fileInfo, err := os.Stat(*certFilePath)
+	if err != nil {
+		log.Warn().Msgf("unable to get file info for %s: %v", *certFilePath, err)
+		rhsmClient.consumerCertLastModTime = time.Time{}
+	} else {
+		modTime := fileInfo.ModTime()
+		log.Debug().Msgf("certificate file %s last modified at: %s", *certFilePath, modTime.Format(time.RFC3339))
+		rhsmClient.consumerCertLastModTime = modTime
 	}
 
 	return nil

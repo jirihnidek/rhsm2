@@ -4,7 +4,10 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 )
@@ -251,6 +254,159 @@ func TestGetCertAuthConnectionRegistered(t *testing.T) {
 	// Verify connection has transport configured
 	if connection.Client == nil {
 		t.Fatalf("connection http client should not be nil")
+	}
+}
+
+// TestGetCertAuthConnectionUnRegistered test the case when we try to get connection
+// using consumer certificate authentication for the system that was unregistered
+func TestGetCertAuthConnectionUnRegistered(t *testing.T) {
+	t.Parallel()
+
+	// Create root directory for this test
+	tempDirFilePath := t.TempDir()
+
+	// Setup filesystem with consumer certificate and key
+	testingFiles, err := setupTestingFileSystem(
+		tempDirFilePath,
+		true,
+		true,
+		false,
+		false,
+		true)
+	if err != nil {
+		t.Fatalf("unable to setup testing environment: %s", err)
+	}
+
+	server := httptest.NewTLSServer(
+		http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
+			// Verify that client certificate was provided
+			if req.TLS == nil || len(req.TLS.PeerCertificates) == 0 {
+				t.Fatalf("expected client certificate, but none was provided")
+			}
+
+			// Return code 200
+			rw.WriteHeader(200)
+			_, _ = rw.Write([]byte("OK"))
+		}))
+	defer server.Close()
+
+	rhsmClient, err := setupTestingRHSMClient(testingFiles, server, nil)
+	if err != nil {
+		t.Fatalf("unable to setup testing rhsm client: %s", err)
+	}
+
+	// Get cert auth connection
+	connection, err := rhsmClient.getCertAuthConnection()
+	if err != nil {
+		t.Fatalf("failed to create cert auth connection: %s", err)
+	}
+
+	if connection == nil {
+		t.Fatalf("connection should not be nil")
+	}
+
+	// Verify connection has transport configured
+	if connection.Client == nil {
+		t.Fatalf("connection http client should not be nil")
+	}
+
+	// Try to mimic unregistering the system and delete consumer certificate and key
+	consumerCertFilePath := filepath.Join(rhsmClient.RHSMConf.RHSM.ConsumerCertDir, "cert.pem")
+	err = os.Remove(consumerCertFilePath)
+	if err != nil {
+		t.Fatalf("failed to delete consumer certificate: %s", err)
+	}
+	consumerKeyFilePath := filepath.Join(rhsmClient.RHSMConf.RHSM.ConsumerCertDir, "key.pem")
+	err = os.Remove(consumerKeyFilePath)
+	if err != nil {
+		t.Fatalf("failed to delete consumer key: %s", err)
+	}
+
+	// Try to get cert auth connection
+	newConnection, err := rhsmClient.getCertAuthConnection()
+	if err == nil {
+		t.Fatalf("It should fail to create cert auth connection, when there is no consumer certificate")
+	}
+
+	if newConnection != nil {
+		t.Fatalf("It should not be able to create cert auth connection, when there is no consumer certificate")
+	}
+}
+
+// TestGetCertAuthConnectionReRegistered test the case when we try to get connection
+// using consumer certificate authentication for the system that was unregistered
+// and then it was re-registered
+func TestGetCertAuthConnectionReRegistered(t *testing.T) {
+	t.Parallel()
+
+	// Create root directory for this test
+	tempDirFilePath := t.TempDir()
+
+	// Setup filesystem with consumer certificate and key
+	testingFiles, err := setupTestingFileSystem(
+		tempDirFilePath,
+		true,
+		true,
+		false,
+		false,
+		true)
+	if err != nil {
+		t.Fatalf("unable to setup testing environment: %s", err)
+	}
+
+	server := httptest.NewTLSServer(
+		http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
+			// Verify that client certificate was provided
+			if req.TLS == nil || len(req.TLS.PeerCertificates) == 0 {
+				t.Fatalf("expected client certificate, but none was provided")
+			}
+
+			// Return code 200
+			rw.WriteHeader(200)
+			_, _ = rw.Write([]byte("OK"))
+		}))
+	defer server.Close()
+
+	rhsmClient, err := setupTestingRHSMClient(testingFiles, server, nil)
+	if err != nil {
+		t.Fatalf("unable to setup testing rhsm client: %s", err)
+	}
+
+	// Get cert auth connection
+	connection, err := rhsmClient.getCertAuthConnection()
+	if err != nil {
+		t.Fatalf("failed to create cert auth connection: %s", err)
+	}
+
+	if connection == nil {
+		t.Fatalf("connection should not be nil")
+	}
+
+	// Verify connection has transport configured
+	if connection.Client == nil {
+		t.Fatalf("connection http client should not be nil")
+	}
+
+	// Try to mimic re-registering the system by changing last modified time of consumer certificate and key
+	consumerCertFilePath := filepath.Join(rhsmClient.RHSMConf.RHSM.ConsumerCertDir, "cert.pem")
+	err = os.Chtimes(consumerCertFilePath, time.Now().Add(+time.Second), time.Now().Add(+time.Second))
+	if err != nil {
+		t.Fatalf("failed to change last modified time of consumer certificate: %s", err)
+	}
+	consumerKeyFilePath := filepath.Join(rhsmClient.RHSMConf.RHSM.ConsumerCertDir, "key.pem")
+	err = os.Chtimes(consumerKeyFilePath, time.Now().Add(+time.Second), time.Now().Add(+time.Second))
+	if err != nil {
+		t.Fatalf("failed to change last modified time of consumer key: %s", err)
+	}
+
+	// Get cert auth connection
+	newConnection, err := rhsmClient.getCertAuthConnection()
+	if err != nil {
+		t.Fatalf("failed to create cert auth connection: %s", err)
+	}
+
+	if connection == newConnection {
+		t.Fatalf("connection should be different after re-registering the system")
 	}
 }
 
