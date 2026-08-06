@@ -282,6 +282,7 @@ func (rhsmClient *RHSMClient) createHTTPsClient(certFile *string, keyFile *strin
 	printReq := os.Getenv("SUBMAN_DEBUG_PRINT_REQUEST")
 	printRes := os.Getenv("SUBMAN_DEBUG_PRINT_RESPONSE")
 	if printRes != "" || printReq != "" {
+		noColor := os.Getenv("NO_COLOR")
 		logger := &httpretty.Logger{
 			Time:            true,
 			TLS:             true,
@@ -289,7 +290,7 @@ func (rhsmClient *RHSMClient) createHTTPsClient(certFile *string, keyFile *strin
 			RequestBody:     printReq != "",
 			ResponseHeader:  printRes != "",
 			ResponseBody:    printRes != "",
-			Colors:          true,
+			Colors:          noColor == "", // Disable color output if NO_COLOR env. var. is set
 			Formatters:      []httpretty.Formatter{&httpretty.JSONFormatter{}},
 			MaxRequestBody:  1024 * 1024,
 			MaxResponseBody: 1024 * 1024,
