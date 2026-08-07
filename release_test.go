@@ -6,6 +6,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 )
@@ -518,9 +519,29 @@ func Test_GetCdnReleasesNotMatchingOsReleaseAndProductCert(t *testing.T) {
 		t.Fatalf("unexpected number of CDN handlers called, expected 0, got %d", cdnHandlerCounter)
 	}
 
-	var noInstalledProductsMatchesOsReleaseError *NoInstalledProductsMatchesOsReleaseError
+	var noInstalledProductsMatchesOsReleaseError *NoInstalledProductCertMatchesOsReleaseError
 	if !errors.As(err, &noInstalledProductsMatchesOsReleaseError) {
 		t.Fatalf("unexpected error returned, when no installed product matches os release: %s", err)
+	}
+
+	if noInstalledProductsMatchesOsReleaseError.NotMatchingTags == nil {
+		t.Fatalf("unexpected nil not matching tags list")
+	}
+
+	if noInstalledProductsMatchesOsReleaseError.OsReleaseTag != "fedora-44" {
+		t.Fatalf("unexpected os release tag, expected fedora-44, got %s",
+			noInstalledProductsMatchesOsReleaseError.OsReleaseTag)
+	}
+
+	if (len(noInstalledProductsMatchesOsReleaseError.NotMatchingTags)) != 2 {
+		t.Fatalf("unexpected number of not matching tags, expected 2, got %d",
+			len(noInstalledProductsMatchesOsReleaseError.NotMatchingTags))
+	}
+
+	expectedNotMatchingTags := []string{"rhel-10", "rhel-10-x86_64"}
+	if !reflect.DeepEqual(noInstalledProductsMatchesOsReleaseError.NotMatchingTags, expectedNotMatchingTags) {
+		t.Fatalf("unexpected not matching tags, expected %v, got %v",
+			expectedNotMatchingTags, noInstalledProductsMatchesOsReleaseError.NotMatchingTags)
 	}
 
 	expectedReleases := map[string]struct{}{}
