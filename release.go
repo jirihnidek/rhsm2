@@ -2,7 +2,6 @@ package rhsm2
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"net/http"
 	"os"
@@ -68,8 +67,8 @@ type OSRelease struct {
 // It reads only the ID and VERSION_ID attributes.
 func parseOSRelease(content *[]byte) (*OSRelease, error) {
 	release := OSRelease{}
-	lines := strings.Split(string(*content), "\n")
-	for _, line := range lines {
+	lines := strings.SplitSeq(string(*content), "\n")
+	for line := range lines {
 		line = strings.TrimSpace(line)
 		if line == "" || strings.HasPrefix(line, "#") {
 			continue
@@ -105,6 +104,31 @@ func parseOSRelease(content *[]byte) (*OSRelease, error) {
 	return &release, nil
 }
 
+// readOsReleaseFile tries to read the OS release file: /etc/os-release
+func readOsReleaseFile(osReleaseFilePath string) (*OSRelease, error) {
+	content, err := os.ReadFile(osReleaseFilePath)
+	if err != nil {
+		return nil, fmt.Errorf("unable to read %s: %s", osReleaseFilePath, err)
+	}
+
+	release, err := parseOSRelease(&content)
+	if err != nil {
+		return nil, err
+	}
+
+	return release, nil
+}
+
+// NoInstalledProductsMatchesOsReleaseError is returned when no installed product certificate matches the
+// current release of the Linux distribution.
+type NoInstalledProductsMatchesOsReleaseError struct {
+	OsReleaseTag string
+}
+
+func (e *NoInstalledProductsMatchesOsReleaseError) Error() string {
+	return fmt.Sprintf("no installed product certificate matches os release: %s", e.OsReleaseTag)
+}
+
 // filterInstalledProductsUsingOSRelease tries to filter the list of installed product certificates
 // using the current release of Linux distribution.
 //
@@ -134,12 +158,7 @@ func parseOSRelease(content *[]byte) (*OSRelease, error) {
 //
 // ]
 func (rhsmClient *RHSMClient) filterInstalledProductsUsingOSRelease(installedProducts []InstalledProduct) ([]InstalledProduct, error) {
-	content, err := os.ReadFile(rhsmClient.RHSMConf.osReleaseFilePath)
-	if err != nil {
-		return nil, fmt.Errorf("unable to read %s: %s", rhsmClient.RHSMConf.osReleaseFilePath, err)
-	}
-
-	release, err := parseOSRelease(&content)
+	release, err := readOsReleaseFile(rhsmClient.RHSMConf.osReleaseFilePath)
 	if err != nil {
 		return nil, err
 	}
@@ -176,9 +195,7 @@ func (rhsmClient *RHSMClient) filterInstalledProductsUsingOSRelease(installedPro
 	}
 
 	if len(filteredProducts) == 0 {
-		return filteredProducts, fmt.Errorf(
-			"no installed product certificate matches os release: %s", osReleaseTag,
-		)
+		return filteredProducts, &NoInstalledProductsMatchesOsReleaseError{OsReleaseTag: osReleaseTag}
 	}
 
 	return filteredProducts, nil
@@ -429,11 +446,33 @@ func (rhsmClient *RHSMClient) GetReleaseFromServer(metadata *RequestMetadata) (s
 	return release.ReleaseVer, nil
 }
 
+// NoProductCertInstalledError is returned when no product certificate is installed.
+type NoProductCertInstalledError struct {
+	DefaultProductCertDirPath string
+	ProductCertDirPath        string
+}
+
+func (e *NoProductCertInstalledError) Error() string {
+	return "no product certificate installed in " + e.DefaultProductCertDirPath + " and " + e.ProductCertDirPath
+}
+
+// NoEntitlementCertInstalledError is returned when no entitlement certificate is installed.
+type NoEntitlementCertInstalledError struct {
+	EntitlementCertDirPath string
+}
+
+func (e *NoEntitlementCertInstalledError) Error() string {
+	return "no entitlement certificate installed in " + e.EntitlementCertDirPath
+}
+
 // getReleaseTags tries to get the list of tags from installed product certificates.
 func (rhsmClient *RHSMClient) getReleaseTags() ([]string, error) {
 	installedProducts := rhsmClient.getInstalledProducts()
 	if len(installedProducts) == 0 {
-		return nil, errors.New("no installed product certificate found")
+		return nil, &NoProductCertInstalledError{
+			DefaultProductCertDirPath: rhsmClient.RHSMConf.RHSM.DefaultProductCertDir,
+			ProductCertDirPath:        rhsmClient.RHSMConf.RHSM.ProductCertDir,
+		}
 	}
 
 	// Use only product certificate that matches current release of Linux distribution.
@@ -457,12 +496,6 @@ func (rhsmClient *RHSMClient) getReleaseTags() ([]string, error) {
 // GetCdnReleases tries to get the list of available releases from CDN. The list of releases
 // should include only unique values of releases. There should not be any duplicates.
 func (rhsmClient *RHSMClient) GetCdnReleases(metadata *RequestMetadata) (map[string]struct{}, error) {
-	// If the connection to the repository does not exist, return error
-	_, err := rhsmClient.getEntitlementCertAuthConnection()
-	if err != nil {
-		return nil, errors.New("connection to repository does not exist")
-	}
-
 	// Get all engineering products
 	engineeringProductsMap, err := rhsmClient.getEngineeringProducts()
 	if err != nil {
@@ -470,7 +503,9 @@ func (rhsmClient *RHSMClient) GetCdnReleases(metadata *RequestMetadata) (map[str
 	}
 
 	if len(engineeringProductsMap) == 0 {
-		return nil, errors.New("no engineering products found")
+		return nil, &NoEntitlementCertInstalledError{
+			EntitlementCertDirPath: rhsmClient.RHSMConf.RHSM.EntitlementCertDir,
+		}
 	}
 
 	// Get the list tags from installed product certificates
