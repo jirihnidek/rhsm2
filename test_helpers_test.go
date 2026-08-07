@@ -171,6 +171,17 @@ func (testingFileSystem *TestingFileSystem) setupDefaultProductCerts(perm *os.Fi
 	return nil
 }
 
+func (testingFileSystem *TestingFileSystem) setupOsReleaseFile(srcFileName string, perm *os.FileMode) error {
+	srcOsReleaseFilePath := "./testdata/etc/" + srcFileName
+	dstOsReleaseFilePath := filepath.Join(testingFileSystem.EtcDirPath, "os-release")
+	err := copyFile(&srcOsReleaseFilePath, &dstOsReleaseFilePath, perm)
+	if err != nil {
+		return fmt.Errorf("unable to create testing os-release file: %s", err)
+	}
+	testingFileSystem.OsReleaseFilePath = dstOsReleaseFilePath
+	return nil
+}
+
 // setupTestingFiles tries to copy and generate testing files to testing directories
 func setupTestingFiles(
 	testingFileSystem *TestingFileSystem,
@@ -182,14 +193,10 @@ func setupTestingFiles(
 	perm *os.FileMode,
 ) error {
 	// Create /etc/os-release file
-	srcOsReleaseFilePath := "./testdata/etc/os-release"
-	dstOsReleaseFilePath := filepath.Join(testingFileSystem.EtcDirPath, "os-release")
-	err := copyFile(&srcOsReleaseFilePath, &dstOsReleaseFilePath, perm)
+	err := testingFileSystem.setupOsReleaseFile("os-release", perm)
 	if err != nil {
-		return fmt.Errorf(
-			"unable to create testing os-release file: %s", err)
+		return fmt.Errorf("unable to create testing os-release file: %s", err)
 	}
-	testingFileSystem.OsReleaseFilePath = dstOsReleaseFilePath
 
 	if syspurposeFilesInstalled {
 		err := testingFileSystem.setupSyspurpose(perm)

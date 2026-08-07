@@ -1,6 +1,7 @@
 package rhsm2
 
 import (
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -396,6 +397,198 @@ func Test_GetCdnReleasesSameReleases(t *testing.T) {
 		if _, exists := expectedReleases[release]; !exists {
 			t.Fatalf("unexpected release %s", release)
 		}
+	}
+}
+
+func Test_GetCdnReleasesNoProductCert(t *testing.T) {
+	t.Parallel()
+	cdnHandlerCounter := 0
+
+	server := httptest.NewTLSServer(
+		// There should be no REST API call in this case
+		http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
+			t.Fatalf("no REST API call needed for generating redhat.repo, %s %s called",
+				req.Method, req.URL.String())
+		}))
+	defer server.Close()
+
+	// Create mock of CDN server
+	cdnServer := httptest.NewTLSServer(
+		http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
+			reqURL := req.URL.String()
+			if req.Method == http.MethodGet {
+				if strings.HasSuffix(reqURL, "/listing") {
+					cdnHandlerCounter += 1
+					// Return code 200
+					rw.WriteHeader(200)
+					// Return a simple text file with some releases in all cases
+					_, _ = rw.Write([]byte("# Some comment\n10 \n10.0 \n10.1 \n10.2\n\n"))
+				}
+			}
+		}))
+	defer cdnServer.Close()
+
+	// Create the root directory for this test
+	tempDirFilePath := t.TempDir()
+
+	testingFiles, err := setupTestingFileSystem(
+		tempDirFilePath, true, true, true, false, false)
+	if err != nil {
+		t.Fatalf("unable to setup testing environment: %s", err)
+	}
+
+	rhsmClient, err := setupTestingRHSMClient(testingFiles, server, cdnServer)
+	if err != nil {
+		t.Fatalf("unable to setup testing rhsm client: %s", err)
+	}
+
+	releases, err := rhsmClient.GetCdnReleases(nil)
+
+	// The testing entitlement certificate contains two different base baths. Thus, there should be
+	// two REST API calls to the CDN server.
+	if cdnHandlerCounter != 0 {
+		t.Fatalf("unexpected number of CDN handlers called, expected 0, got %d", cdnHandlerCounter)
+	}
+
+	var noProductCertInstalledError *NoProductCertInstalledError
+	if !errors.As(err, &noProductCertInstalledError) {
+		t.Fatalf("unexpected error returned, when no product cert is installed: %s", err)
+	}
+
+	expectedReleases := map[string]struct{}{}
+
+	if len(releases) != len(expectedReleases) {
+		t.Fatalf("unexpected number of CDN releases, expected %d, got %d", len(expectedReleases), len(releases))
+	}
+}
+
+func Test_GetCdnReleasesNotMatchingOsReleaseAndProductCert(t *testing.T) {
+	t.Parallel()
+	cdnHandlerCounter := 0
+
+	server := httptest.NewTLSServer(
+		// There should be no REST API call in this case
+		http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
+			t.Fatalf("no REST API call needed for generating redhat.repo, %s %s called",
+				req.Method, req.URL.String())
+		}))
+	defer server.Close()
+
+	// Create mock of CDN server
+	cdnServer := httptest.NewTLSServer(
+		http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
+			reqURL := req.URL.String()
+			if req.Method == http.MethodGet {
+				if strings.HasSuffix(reqURL, "/listing") {
+					cdnHandlerCounter += 1
+					// Return code 200
+					rw.WriteHeader(200)
+					// Return a simple text file with some releases in all cases
+					_, _ = rw.Write([]byte("# Some comment\n10 \n10.0 \n10.1 \n10.2\n\n"))
+				}
+			}
+		}))
+	defer cdnServer.Close()
+
+	// Create the root directory for this test
+	tempDirFilePath := t.TempDir()
+
+	testingFiles, err := setupTestingFileSystem(
+		tempDirFilePath, true, true, true, false, true)
+	if err != nil {
+		t.Fatalf("unable to setup testing environment: %s", err)
+	}
+
+	// Create /etc/os-release file
+	err = testingFiles.setupOsReleaseFile("os-release-fedora", nil)
+	if err != nil {
+		t.Fatalf("unable to create testing os-release file: %s", err)
+	}
+
+	rhsmClient, err := setupTestingRHSMClient(testingFiles, server, cdnServer)
+	if err != nil {
+		t.Fatalf("unable to setup testing rhsm client: %s", err)
+	}
+
+	releases, err := rhsmClient.GetCdnReleases(nil)
+
+	// The testing entitlement certificate contains two different base baths. Thus, there should be
+	// two REST API calls to the CDN server.
+	if cdnHandlerCounter != 0 {
+		t.Fatalf("unexpected number of CDN handlers called, expected 0, got %d", cdnHandlerCounter)
+	}
+
+	var noInstalledProductsMatchesOsReleaseError *NoInstalledProductsMatchesOsReleaseError
+	if !errors.As(err, &noInstalledProductsMatchesOsReleaseError) {
+		t.Fatalf("unexpected error returned, when no installed product matches os release: %s", err)
+	}
+
+	expectedReleases := map[string]struct{}{}
+
+	if len(releases) != len(expectedReleases) {
+		t.Fatalf("unexpected number of CDN releases, expected %d, got %d", len(expectedReleases), len(releases))
+	}
+}
+
+func Test_GetCdnReleasesNoEntCert(t *testing.T) {
+	t.Parallel()
+	cdnHandlerCounter := 0
+
+	server := httptest.NewTLSServer(
+		// There should be no REST API call in this case
+		http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
+			t.Fatalf("no REST API call needed for generating redhat.repo, %s %s called",
+				req.Method, req.URL.String())
+		}))
+	defer server.Close()
+
+	// Create mock of CDN server
+	cdnServer := httptest.NewTLSServer(
+		http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
+			reqURL := req.URL.String()
+			if req.Method == http.MethodGet {
+				if strings.HasSuffix(reqURL, "/listing") {
+					cdnHandlerCounter += 1
+					// Return code 200
+					rw.WriteHeader(200)
+					// Return a simple text file with some releases in all cases
+					_, _ = rw.Write([]byte("# Some comment\n10 \n10.0 \n10.1 \n10.2\n\n"))
+				}
+			}
+		}))
+	defer cdnServer.Close()
+
+	// Create the root directory for this test
+	tempDirFilePath := t.TempDir()
+
+	testingFiles, err := setupTestingFileSystem(
+		tempDirFilePath, true, true, false, false, true)
+	if err != nil {
+		t.Fatalf("unable to setup testing environment: %s", err)
+	}
+
+	rhsmClient, err := setupTestingRHSMClient(testingFiles, server, cdnServer)
+	if err != nil {
+		t.Fatalf("unable to setup testing rhsm client: %s", err)
+	}
+
+	releases, err := rhsmClient.GetCdnReleases(nil)
+
+	// The testing entitlement certificate contains two different base baths. Thus, there should be
+	// two REST API calls to the CDN server.
+	if cdnHandlerCounter != 0 {
+		t.Fatalf("unexpected number of CDN handlers called, expected 0, got %d", cdnHandlerCounter)
+	}
+
+	var noEntCertInstalledError *NoEntitlementCertInstalledError
+	if !errors.As(err, &noEntCertInstalledError) {
+		t.Fatalf("unexpected error returned, when no entitlement cert is installed: %s", err)
+	}
+
+	expectedReleases := map[string]struct{}{}
+
+	if len(releases) != len(expectedReleases) {
+		t.Fatalf("unexpected number of CDN releases, expected %d, got %d", len(expectedReleases), len(releases))
 	}
 }
 
