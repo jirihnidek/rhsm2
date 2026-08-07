@@ -119,14 +119,16 @@ func readOsReleaseFile(osReleaseFilePath string) (*OSRelease, error) {
 	return release, nil
 }
 
-// NoInstalledProductsMatchesOsReleaseError is returned when no installed product certificate matches the
+// NoInstalledProductCertMatchesOsReleaseError is returned when no installed product certificate matches the
 // current release of the Linux distribution.
-type NoInstalledProductsMatchesOsReleaseError struct {
-	OsReleaseTag string
+type NoInstalledProductCertMatchesOsReleaseError struct {
+	OsReleaseTag    string
+	NotMatchingTags []string
 }
 
-func (e *NoInstalledProductsMatchesOsReleaseError) Error() string {
-	return fmt.Sprintf("no installed product certificate matches os release: %s", e.OsReleaseTag)
+func (e *NoInstalledProductCertMatchesOsReleaseError) Error() string {
+	return fmt.Sprintf("no tag of installed product certificate(s) %v matches os release: %s",
+		e.NotMatchingTags, e.OsReleaseTag)
 }
 
 // filterInstalledProductsUsingOSRelease tries to filter the list of installed product certificates
@@ -173,6 +175,7 @@ func (rhsmClient *RHSMClient) filterInstalledProductsUsingOSRelease(installedPro
 	osReleaseTag := strings.ToLower(release.ID) + "-" + release.VersionMajor
 
 	var filteredProducts []InstalledProduct
+	var notMatchingTags = make(map[string]struct{})
 	for _, product := range installedProducts {
 		found := false
 		// Look for tags that match the current OS release version
@@ -182,10 +185,12 @@ func (rhsmClient *RHSMClient) filterInstalledProductsUsingOSRelease(installedPro
 				filteredProducts = append(filteredProducts, product)
 				found = true
 				break
+			} else {
+				notMatchingTags[tag] = struct{}{}
 			}
 		}
 		if !found {
-			log.Warn().Msgf(
+			log.Info().Msgf(
 				"skipping product: %s; its tags: %s do not match os release: %s",
 				product.filePath,
 				product.providedTags,
@@ -195,7 +200,14 @@ func (rhsmClient *RHSMClient) filterInstalledProductsUsingOSRelease(installedPro
 	}
 
 	if len(filteredProducts) == 0 {
-		return filteredProducts, &NoInstalledProductsMatchesOsReleaseError{OsReleaseTag: osReleaseTag}
+		var notMatchingTagsList []string
+		for tag := range notMatchingTags {
+			notMatchingTagsList = append(notMatchingTagsList, tag)
+		}
+		return filteredProducts, &NoInstalledProductCertMatchesOsReleaseError{
+			OsReleaseTag:    osReleaseTag,
+			NotMatchingTags: notMatchingTagsList,
+		}
 	}
 
 	return filteredProducts, nil
@@ -513,7 +525,7 @@ func (rhsmClient *RHSMClient) GetCdnReleases(metadata *RequestMetadata) (map[str
 	// used for getting the list of available releases
 	releaseTags, err := rhsmClient.getReleaseTags()
 	if err != nil {
-		log.Debug().Msgf("unable to get release tags: %s", err)
+		log.Warn().Msgf("unable to get release tags: %s", err)
 		return nil, err
 	}
 	log.Debug().Msgf("release tags: %v", releaseTags)
