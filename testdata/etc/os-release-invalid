@@ -1,0 +1,5 @@
+NAME=Red Hat Enterprise Linux
+VERSION=11.5 (Foo)
+INVALID_LINE
+ID=rhel
+foo: bar
