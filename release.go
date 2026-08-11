@@ -108,15 +108,25 @@ func parseOSRelease(content *[]byte) (*OSRelease, error) {
 func readOsReleaseFile(osReleaseFilePath string) (*OSRelease, error) {
 	content, err := os.ReadFile(osReleaseFilePath)
 	if err != nil {
-		return nil, fmt.Errorf("unable to read %s: %s", osReleaseFilePath, err)
+		return nil, &ReadOSReleaseError{OsReleaseFilePath: osReleaseFilePath, Err: err}
 	}
 
 	release, err := parseOSRelease(&content)
 	if err != nil {
-		return nil, err
+		return nil, &ReadOSReleaseError{OsReleaseFilePath: osReleaseFilePath, Err: err}
 	}
 
 	return release, nil
+}
+
+// ReadOSReleaseError is returned when unable to read the OS release file.
+type ReadOSReleaseError struct {
+	OsReleaseFilePath string
+	Err               error
+}
+
+func (e *ReadOSReleaseError) Error() string {
+	return fmt.Sprintf("unable to read os release file %s: %s", e.OsReleaseFilePath, e.Err)
 }
 
 // NoInstalledProductCertMatchesOsReleaseError is returned when no installed product certificate matches the

@@ -1624,3 +1624,68 @@ HOME_URL="https://www.redhat.com/"`,
 		})
 	}
 }
+
+func Test_readOsReleaseFile(t *testing.T) {
+	tests := []struct {
+		name     string
+		filePath string
+		want     OSRelease
+		wantErr  bool
+	}{
+		{
+			name:     "valid RHEL os-release file",
+			filePath: "testdata/etc/os-release",
+			want: OSRelease{
+				ID:           "rhel",
+				VersionID:    "10.0",
+				VersionMajor: "10",
+				VersionMinor: "0",
+			},
+			wantErr: false,
+		},
+		{
+			name:     "valid Fedora os-release file",
+			filePath: "testdata/etc/os-release-fedora",
+			want: OSRelease{
+				ID:           "fedora",
+				VersionID:    "44",
+				VersionMajor: "44",
+				VersionMinor: "",
+			},
+			wantErr: false,
+		},
+		{
+			name:     "invalid os-release file",
+			filePath: "testdata/etc/os-release-invalid",
+			want:     OSRelease{},
+			wantErr:  true,
+		},
+		{
+			name:     "non-existent file",
+			filePath: "testdata/etc/non-existent-file",
+			want:     OSRelease{},
+			wantErr:  true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := readOsReleaseFile(tt.filePath)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("readOsReleaseFile() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if tt.wantErr {
+				var readOsReleaseError *ReadOSReleaseError
+				if errors.As(err, &readOsReleaseError) {
+					_ = readOsReleaseError.Error()
+					return
+				}
+				t.Errorf("expected readOsReleaseFile() returns ReadOSReleaseError, got %v", err)
+			}
+			if got != nil && *got != tt.want {
+				t.Errorf("readOsReleaseFile() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
