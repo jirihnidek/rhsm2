@@ -191,7 +191,7 @@ func TestWriteRepoFile(t *testing.T) {
 		t.Fatalf("unable to setup testing rhsm client: %s", err)
 	}
 
-	err = rhsmClient.generateRepoFileFromInstalledEntitlementCerts()
+	err = rhsmClient.GenerateRepoFileFromInstalledEntitlementCerts()
 
 	if err != nil {
 		t.Fatalf("unable to generate '%s': %s", testingFiles.YumRepoFilePath, err)
@@ -225,7 +225,7 @@ func TestWriteRepoFileNoEntCert(t *testing.T) {
 		t.Fatalf("unable to setup testing rhsm client: %s", err)
 	}
 
-	err = rhsmClient.generateRepoFileFromInstalledEntitlementCerts()
+	err = rhsmClient.GenerateRepoFileFromInstalledEntitlementCerts()
 
 	if err != nil {
 		t.Fatalf("when no entitlement certificate installed, error returned: %s", err)

@@ -183,9 +183,9 @@ func (rhsmClient *RHSMClient) getEngineeringProducts() (map[int64][]EngineeringP
 	return engineeringProductsMap, nil
 }
 
-// generateRepoFileFromInstalledEntitlementCerts tries to generate redhat.repo file
+// GenerateRepoFileFromInstalledEntitlementCerts tries to generate redhat.repo file
 // from installed entitlement certificate(s) and content overrides
-func (rhsmClient *RHSMClient) generateRepoFileFromInstalledEntitlementCerts() error {
+func (rhsmClient *RHSMClient) GenerateRepoFileFromInstalledEntitlementCerts() error {
 	engineeringProductsMap, err := rhsmClient.getEngineeringProducts()
 	if err != nil {
 		return err

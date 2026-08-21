@@ -504,7 +504,7 @@ func TestUpdateEntitlementCertificate(t *testing.T) {
 		t.Fatalf("unable to setup testing rhsm client: %s", err)
 	}
 
-	err = rhsmClient.UpdateEntitlementCertificate(nil)
+	err = rhsmClient.UpdateEntitlementCertificate(false, nil)
 	if err != nil {
 		t.Fatalf("failed to get SCA entitlement cert and key: %s", err)
 	}
@@ -580,7 +580,7 @@ func TestUpdateEntitlementCertificate_SameSerialReissue(t *testing.T) {
 		t.Fatalf("precondition failed: cert should exist before update: %s", err)
 	}
 
-	if err := rhsmClient.UpdateEntitlementCertificate(nil); err != nil {
+	if err := rhsmClient.UpdateEntitlementCertificate(false, nil); err != nil {
 		t.Fatalf("UpdateEntitlementCertificate failed: %s", err)
 	}
 
@@ -591,5 +591,59 @@ func TestUpdateEntitlementCertificate_SameSerialReissue(t *testing.T) {
 	keyPath := filepath.Join(testingFiles.EntitlementDirPath, testEntCertSerialNumber+"-key.pem")
 	if _, err := os.Stat(keyPath); err != nil {
 		t.Fatalf("expected entitlement key %s to still exist: %s", keyPath, err)
+	}
+}
+
+// TestUpdateEntitlementCertificate_Force tests that when force is true, no
+// If-Modified-Since header is sent, even when a certificate with a known
+// mtime is already installed.
+func TestUpdateEntitlementCertificate_Force(t *testing.T) {
+	t.Parallel()
+	var expectedClientUUID = "5e9745d5-624d-4af1-916e-2c17df4eb4e8"
+	handlerCounter := 0
+
+	server := httptest.NewTLSServer(
+		http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
+			handlerCounter += 1
+
+			expectedURL := "/consumers/" + expectedClientUUID + "/accessible_content"
+			reqURL := req.URL.String()
+			if reqURL != expectedURL {
+				t.Fatalf("expected request URL: %s, got: %s", expectedURL, reqURL)
+			}
+
+			if ifModSince := req.Header.Get("If-Modified-Since"); ifModSince != "" {
+				t.Fatalf("expected no If-Modified-Since header when force is true, got: %s", ifModSince)
+			}
+
+			rw.WriteHeader(200)
+			rw.Header().Add("x-candlepin-request-uuid", "168e3687-8498-46b2-af0a-272583d4d4ba")
+			_, _ = rw.Write([]byte(updatedCertificate))
+		}))
+	defer server.Close()
+
+	tempDirFilePath := t.TempDir()
+
+	// Setup filesystem for the case, when an entitlement cert/key is already installed,
+	// so that a non-forced call would normally send If-Modified-Since.
+	testingFiles, err := setupTestingFileSystem(
+		tempDirFilePath, false, true, true, false, true)
+	if err != nil {
+		t.Fatalf("unable to setup testing environment: %s", err)
+	}
+
+	rhsmClient, err := setupTestingRHSMClient(testingFiles, server, nil)
+	if err != nil {
+		t.Fatalf("unable to setup testing rhsm client: %s", err)
+	}
+
+	err = rhsmClient.UpdateEntitlementCertificate(true, nil)
+	if err != nil {
+		t.Fatalf("failed to force update SCA entitlement cert and key: %s", err)
+	}
+
+	if handlerCounter != 1 {
+		t.Fatalf("handler for getting SCA entitlement cert REST API pointed not called once, but called: %d",
+			handlerCounter)
 	}
 }
