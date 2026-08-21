@@ -214,6 +214,7 @@ func (rhsmClient *RHSMClient) filterInstalledProductsUsingOSRelease(installedPro
 		for tag := range notMatchingTags {
 			notMatchingTagsList = append(notMatchingTagsList, tag)
 		}
+		sort.Strings(notMatchingTagsList)
 		return filteredProducts, &NoInstalledProductCertMatchesOsReleaseError{
 			OsReleaseTag:    osReleaseTag,
 			NotMatchingTags: notMatchingTagsList,
