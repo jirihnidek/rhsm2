@@ -206,7 +206,9 @@ type UpdatedEntitlementCertificate struct {
 // will return a 304 Not Modified response. If candlepin decide that it is necessary to update the entitlement
 // certificate, then it will return a 200 OK response with the new certificate. Thus, it is necessary
 // to install the new certificate and then delete the old one.
-func (rhsmClient *RHSMClient) UpdateEntitlementCertificate(metadata *RequestMetadata) error {
+// When force is true, the If-Modified-Since header is omitted, so candlepin always returns a fresh
+// certificate instead of a 304.
+func (rhsmClient *RHSMClient) UpdateEntitlementCertificate(force bool, metadata *RequestMetadata) error {
 	consumerUuid, err := rhsmClient.GetConsumerUUID()
 	if err != nil {
 		return fmt.Errorf("failed to get consumer certificate: %v", err)
@@ -237,7 +239,7 @@ func (rhsmClient *RHSMClient) UpdateEntitlementCertificate(metadata *RequestMeta
 	}
 
 	var headers = make(map[string]string)
-	if !lastModified.IsZero() {
+	if !force && !lastModified.IsZero() {
 		headers["If-Modified-Since"] = lastModified.UTC().Format(time.RFC1123)
 	}
 
