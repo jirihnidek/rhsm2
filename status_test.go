@@ -90,7 +90,7 @@ func TestGetServerEndpoints(t *testing.T) {
 
 			// Test request method
 			if req.Method != http.MethodGet {
-				t.Fatalf("extepected request method: %s, got: %s", http.MethodGet, req.Method)
+				t.Fatalf("expected request method: %s, got: %s", http.MethodGet, req.Method)
 			}
 
 			// Test that requested URL is correct
@@ -181,7 +181,7 @@ func TestGetServerStatus(t *testing.T) {
 
 			// Test request method
 			if req.Method != http.MethodGet {
-				t.Fatalf("extepected request method: %s, got: %s", http.MethodGet, req.Method)
+				t.Fatalf("expected request method: %s, got: %s", http.MethodGet, req.Method)
 			}
 
 			// Test that requested URL is correct
@@ -247,7 +247,7 @@ func TestGetServerStatusInternalServerError(t *testing.T) {
 
 			// Test request method
 			if req.Method != http.MethodGet {
-				t.Fatalf("extepected request method: %s, got: %s", http.MethodGet, req.Method)
+				t.Fatalf("expected request method: %s, got: %s", http.MethodGet, req.Method)
 			}
 
 			// Test that requested URL is correct

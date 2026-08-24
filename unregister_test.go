@@ -124,7 +124,7 @@ func TestUnregisterRegisteredSystem(t *testing.T) {
 
 			// Test request method
 			if req.Method != http.MethodDelete {
-				t.Fatalf("extepected request method: %s, got: %s", http.MethodDelete, req.Method)
+				t.Fatalf("expected request method: %s, got: %s", http.MethodDelete, req.Method)
 			}
 
 			// Test that requested URL is correct
@@ -224,7 +224,7 @@ func TestUnregisterRegisteredSystemReadOnlyFileSystem(t *testing.T) {
 
 			// Test request method
 			if req.Method != http.MethodDelete {
-				t.Fatalf("extepected request method: %s, got: %s", http.MethodDelete, req.Method)
+				t.Fatalf("expected request method: %s, got: %s", http.MethodDelete, req.Method)
 			}
 
 			// Test that requested URL is correct
@@ -291,7 +291,7 @@ func TestUnregisterUnRegisteredSystem(t *testing.T) {
 
 			// Test request method
 			if req.Method != http.MethodDelete {
-				t.Fatalf("extepected request method: %s, got: %s", http.MethodDelete, req.Method)
+				t.Fatalf("expected request method: %s, got: %s", http.MethodDelete, req.Method)
 			}
 
 			// Test that requested URL is correct
@@ -348,7 +348,7 @@ func TestUnregisterDeletedConsumer(t *testing.T) {
 
 			// Test request method
 			if req.Method != http.MethodDelete {
-				t.Fatalf("extepected request method: %s, got: %s", http.MethodDelete, req.Method)
+				t.Fatalf("expected request method: %s, got: %s", http.MethodDelete, req.Method)
 			}
 
 			// Test that requested URL is correct
@@ -410,7 +410,7 @@ func TestUnregisterWrongConsumer(t *testing.T) {
 
 			// Test request method
 			if req.Method != http.MethodDelete {
-				t.Fatalf("extepected request method: %s, got: %s", http.MethodDelete, req.Method)
+				t.Fatalf("expected request method: %s, got: %s", http.MethodDelete, req.Method)
 			}
 
 			// Test that requested URL is correct
@@ -473,7 +473,7 @@ func TestUnregisterInternalServerError(t *testing.T) {
 
 			// Test request method
 			if req.Method != http.MethodDelete {
-				t.Fatalf("extepected request method: %s, got: %s", http.MethodDelete, req.Method)
+				t.Fatalf("expected request method: %s, got: %s", http.MethodDelete, req.Method)
 			}
 
 			// Test that requested URL is correct
