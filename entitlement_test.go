@@ -537,3 +537,59 @@ func TestUpdateEntitlementCertificate(t *testing.T) {
 		t.Fatalf("expected entitlement key: %s is not installed: %s", expectedEntKeyFilePath, err)
 	}
 }
+
+// sameSerialUpdatedCertificate mirrors updatedCertificate, except it reissues
+// testEntCertSerialNumber (the already-installed serial) instead of a different one.
+const sameSerialUpdatedCertificate = `
+{
+  "contentListing" : {
+    "` + testEntCertSerialNumber + `" : [ "-----BEGIN CERTIFICATE-----\nMIIF5DCCA8ygAwIBAgIIeOrPIU793bcwDQYJKoZIhvcNAQELBQAwRDEcMBoGA1UE\nAwwTQ2FuZGxlcGluIFNlcnZlciBDQTESMBAGA1UECwwJQ2FuZGxlcGluMRAwDgYD\nVQQKDAdSZWQgSGF0MB4XDTI2MDgxNDEzMjUzM1oXDTI3MDgxNDEzMjUzM1owRDET\nMBEGA1UECgwKZG9uYWxkZHVjazEtMCsGA1UEAwwkMTJiYjIyMWYtNzVhOC00NTQ1\nLThiNGEtMTJjNzA0OTc1NTkxMIICIjANBgkqhkiG9w0BAQEFAAOCAg8AMIICCgKC\nAgEAnPvKLkH3KhBy0YgF9ZDsvERXveoUy5Hsr2UnyuEaBk2BJuAeDx3eRUwq/QhL\nBqwINGIR1JfwyiOetGVlTr43koUr0Iv4NFC+GiNsaTrA8ASVtMQcehzxvcydzjMi\nooMEMN/tXtMQSGqc0MPHS4qZjYNTFg00cHm+8HXT+S4sGzGigWAe5yzQXEBR3hZg\nX7aOrB0rtS0ZBqNTfXMWX8nYci+KLXVtsZ1jCBpEkIC9iV4HLYweke6UoE6xXGe1\nSWOvi5EdT6SZiScit5qW1isc1w/vuslgP3qm+GaVR4yE9Q+k90MLyjWwvp1p9iOc\n3x2idJ1RWGIdO6J7Y/YUbq8PNN/tjV/VTEPkqIJMdBAFmi5oeeco7rwHv3/AOPKn\nEg5Btrb3BtufvH17NKnprNkzhxjj/xhjSeSWc2QdlEIZd+xicPzzz5E7KiK2yub4\nJjAUMVm0kn6h6wJmStW2Mt2nM6PW2nGGjCNm6/894piOxsMEK9tblbvcE/RYISRf\nSoCtjAjc06q7VUiRD3nEJLcJE9XutIJjd7HRNadIes2OTkihnz74r6Kir8mIt6KT\nyCq7FqVyUSNtvaOHFa/GcUkMrJBW6A8BAmzbM+uyukWVQ6kFLSWeh7Q2DLnyu54K\n2VfuI+/PONrv/AZbynIdVts+Mn3zBUMnMhocRrBPkYOow7kCAwEAAaOB2TCB1jAR\nBglghkgBhvhCAQEEBAMCBaAwDgYDVR0PAQH/BAQDAgeAMBMGA1UdJQQMMAoGCCsG\nAQUFBwMCMB8GA1UdIwQYMBaAFPlj+v2vZmNSwocyVSGn10iH6HniMB0GA1UdDgQW\nBBRy6/IcpkaJ9DeVf9x9IZoqJXku/jAJBgNVHRMEAjAAMBcGCSsGAQQBkggJCAQK\nDAhPcmdMZXZlbDAkBgkrBgEEAZIICQcEFwQVeNpLyc9LzElJKU3OZgAAGqYEGgM4\nMBIGCSsGAQQBkggJBgQFDAMzLjQwDQYJKoZIhvcNAQELBQADggIBADGU7fZMCila\nj70Lz6XxfNeNEv47vmKzt6e8s730WwbMSJuEcDn+t3kmXhl4bF5/FyDs8VFtXyYD\nDJenvi21g43506rQEpy8jcMBwkoTpK5sokZBcwbzlI0PLmOChdtrI0OZzquPKgtz\nWIiyHe5i4Nt0U1J5ruFg72sD+axDAwLqJU9fKlO8jabq8LWfEP5LzfvmsIw3/aED\nB7msdlWD9tSYdI/1RY+1RS+MtUCBwlhHm7rv9GWG77b6s0oOchdcvf4tLBG0vwXW\nq8BhpaOUSGaQ0xLTvFCOpQVOw8b3Hpm6xkmOgrynOuqH1iX/w7rEpVpoMGTHrYFc\nTU4sFk3CAwO+9Ukc/6ZQlXTTPE8PVYEz8jtczWLJ0T46fpf80wLDLBOs04QnDU4p\nu0Ym8AEBxF3uo/YhQ+sQ/suZ9krGQnp6BMsUs0695x+HWbQlaCY1pm1dfzSPAWwi\nsMqiS2DClzxhSqifuuMT3B4UeUSEYZCIVI74mjD7X8xsOcVA1WRMLsiATCb1NoGX\nJ/RvH4AFaVmtYXHaOLK64+51YgVqfI3blpOUnONYu26SgBSI4jv6iv+xnNV6rM5Y\nOrOxrR1aK8lRaXId94nlwRvD0cmt9xd8umRo5GdcnM5EdjnYUdWQeJqfy3CBdsn3\nV5tHMk9HNUM3bTvUu8hjLAo3axYLVMJm\n-----END CERTIFICATE-----\n" ]
+  },
+  "lastUpdate" : "2026-08-14T14:25:33+0000"
+}
+`
+
+// TestUpdateEntitlementCertificate_SameSerialReissue is a regression test.
+// When candlepin reissues the entitlement certificate under the same serial number as the
+// one already installed, the cert file must not be deleted after the update.
+func TestUpdateEntitlementCertificate_SameSerialReissue(t *testing.T) {
+	t.Parallel()
+
+	server := httptest.NewTLSServer(
+		http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
+			rw.WriteHeader(200)
+			_, _ = rw.Write([]byte(sameSerialUpdatedCertificate))
+		}))
+	defer server.Close()
+
+	tempDirFilePath := t.TempDir()
+
+	// entCertsInstalled=true installs a cert/key pair at serial testEntCertSerialNumber
+	testingFiles, err := setupTestingFileSystem(tempDirFilePath, false, true, true, false, true)
+	if err != nil {
+		t.Fatalf("unable to setup testing environment: %s", err)
+	}
+
+	rhsmClient, err := setupTestingRHSMClient(testingFiles, server, nil)
+	if err != nil {
+		t.Fatalf("unable to setup testing rhsm client: %s", err)
+	}
+
+	certPath := filepath.Join(testingFiles.EntitlementDirPath, testEntCertSerialNumber+".pem")
+	if _, err := os.Stat(certPath); err != nil {
+		t.Fatalf("precondition failed: cert should exist before update: %s", err)
+	}
+
+	if err := rhsmClient.UpdateEntitlementCertificate(nil); err != nil {
+		t.Fatalf("UpdateEntitlementCertificate failed: %s", err)
+	}
+
+	if _, err := os.Stat(certPath); err != nil {
+		t.Fatalf("entitlement cert %s was deleted after refresh with same serial: %s", certPath, err)
+	}
+
+	keyPath := filepath.Join(testingFiles.EntitlementDirPath, testEntCertSerialNumber+"-key.pem")
+	if _, err := os.Stat(keyPath); err != nil {
+		t.Fatalf("expected entitlement key %s to still exist: %s", keyPath, err)
+	}
+}

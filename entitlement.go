@@ -346,8 +346,11 @@ func (rhsmClient *RHSMClient) UpdateEntitlementCertificate(metadata *RequestMeta
 		newCertPath = certFilePath
 	}
 
-	// When a new entitlement certificate is installed, rename the existing key file and then delete the old certificate
-	if newEntCertInstalled {
+	// When a new entitlement certificate is installed, rename the existing key file and then
+	// delete the old certificate. When the reissued certificate keeps the same serial number,
+	// newCertPath is the same file that was just written above, so renaming/removing would
+	// destroy the certificate that was just installed -- skip both in that case.
+	if newEntCertInstalled && newCertPath != certPath {
 		newKeyFilePath := filepath.Join(rhsmClient.RHSMConf.RHSM.EntitlementCertDir, newCertId+"-key.pem")
 		err = os.Rename(keyPath, newKeyFilePath)
 		if err != nil {
