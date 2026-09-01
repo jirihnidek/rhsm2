@@ -219,6 +219,7 @@ func (rhsmClient *RHSMClient) UpdateEntitlementCertificate(force bool, metadata 
 		return fmt.Errorf("failed to get installed entitlement certificates: %v", err)
 	}
 
+	// Try to get the path of SCA entitlement certificate and key and the last modified time of the certificate.
 	var lastModified time.Time
 	var keyPath string
 	var certPath string
@@ -293,7 +294,6 @@ func (rhsmClient *RHSMClient) UpdateEntitlementCertificate(force bool, metadata 
 				mapValue = mapValue.Elem()
 			}
 
-			// log.Debug().Msgf("field name: %s", fieldName)
 			if mapValue.Kind() == reflect.Slice {
 				stringSlice := make([]string, mapValue.Len())
 				for j := 0; j < mapValue.Len(); j++ {
@@ -307,7 +307,6 @@ func (rhsmClient *RHSMClient) UpdateEntitlementCertificate(force bool, metadata 
 						stringSlice[j] = fmt.Sprintf("%v", elem.Interface())
 					}
 				}
-				// log.Debug().Msgf("certificate content: %v", stringSlice)
 				updateCerts[fieldName] = stringSlice
 				break
 			} else {
@@ -331,7 +330,9 @@ func (rhsmClient *RHSMClient) UpdateEntitlementCertificate(force bool, metadata 
 	for certId, stringSlice := range updateCerts {
 		if len(stringSlice) > 0 {
 			foundCertId = certId
-			foundCertContent = stringSlice[0]
+			// Join the string slice into a single string, because each item of the slice
+			// can contain one or multiple blocks of the certificate.
+			foundCertContent = strings.Join(stringSlice, "")
 			break
 		}
 	}
