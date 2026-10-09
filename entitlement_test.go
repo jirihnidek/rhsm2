@@ -1,6 +1,7 @@
 package rhsm2
 
 import (
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -485,7 +486,7 @@ func TestUpdateEntitlementCertificate(t *testing.T) {
 			rw.WriteHeader(200)
 			// Add some headers specific for candlepin server
 			rw.Header().Add("x-candlepin-request-uuid", "168e3687-8498-46b2-af0a-272583d4d4ba")
-			// Return empty body
+			// Return JSON document with a new certificate
 			_, _ = rw.Write([]byte(updatedCertificate))
 		}))
 	defer server.Close()
@@ -506,7 +507,7 @@ func TestUpdateEntitlementCertificate(t *testing.T) {
 		t.Fatalf("unable to setup testing rhsm client: %s", err)
 	}
 
-	err = rhsmClient.UpdateEntitlementCertificate(false, nil)
+	certFilePath, keyFilePath, err := rhsmClient.UpdateEntitlementCertificate(false, nil)
 	if err != nil {
 		t.Fatalf("failed to get SCA entitlement cert and key: %s", err)
 	}
@@ -533,6 +534,11 @@ func TestUpdateEntitlementCertificate(t *testing.T) {
 		t.Fatalf("expected entitlement cert: %s is not installed: %s", expectedEntCertFilePath, err)
 	}
 
+	if *certFilePath != expectedEntCertFilePath {
+		t.Fatalf("expected entitlement cert: %s is not installed; instead: %s is installed",
+			expectedEntCertFilePath, *certFilePath)
+	}
+
 	// Test that entitlement cert contains all required blocks
 	entCertContent, err := os.ReadFile(expectedEntCertFilePath)
 	if err != nil {
@@ -552,6 +558,111 @@ func TestUpdateEntitlementCertificate(t *testing.T) {
 	expectedEntKeyFilePath := filepath.Join(testingFiles.EntitlementDirPath, "8713004171067776439-key.pem")
 	if _, err := os.Stat(expectedEntKeyFilePath); err != nil {
 		t.Fatalf("expected entitlement key: %s is not installed: %s", expectedEntKeyFilePath, err)
+	}
+
+	if *keyFilePath != expectedEntKeyFilePath {
+		t.Fatalf("expected entitlement key: %s is not installed; instead: %s is installed",
+			expectedEntKeyFilePath, *keyFilePath)
+	}
+}
+
+// TestUpdateEntitlementCertificateStillUpToDate test the case, when existing entitlement
+// certificate is still up to date and it is not necessary to update the certificae.
+func TestUpdateEntitlementCertificateStillUpToDate(t *testing.T) {
+	t.Parallel()
+	var expectedClientUUID = "5e9745d5-624d-4af1-916e-2c17df4eb4e8"
+	handlerCounter := 0
+
+	server := httptest.NewTLSServer(
+		// It is expected that getSCAEntitlementCertificate() will call only
+		// one REST API point
+		http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
+			// Increase number of calls
+			handlerCounter += 1
+
+			// Test request method
+			if req.Method != http.MethodGet {
+				t.Fatalf("expected request method: %s, got: %s", http.MethodGet, req.Method)
+			}
+
+			// Test that requested URL is correct
+			expectedURL := "/consumers/" + expectedClientUUID + "/accessible_content"
+			reqURL := req.URL.String()
+			if reqURL != expectedURL {
+				t.Fatalf("expected request URL: %s, got: %s", expectedURL, reqURL)
+			}
+
+			// Return code 304
+			rw.WriteHeader(304)
+			// Add some headers specific for candlepin server
+			rw.Header().Add("x-candlepin-request-uuid", "168e3687-8498-46b2-af0a-272583d4d4ba")
+			// Return empty body
+			_, _ = rw.Write([]byte(""))
+		}))
+	defer server.Close()
+
+	// Create root directory for this test
+	tempDirFilePath := t.TempDir()
+
+	// Setup filesystem for the case, when system is only registered,
+	// but no entitlement cert/key has been installed yet
+	testingFiles, err := setupTestingFileSystem(
+		tempDirFilePath, false, true, true, false, true)
+	if err != nil {
+		t.Fatalf("unable to setup testing environment: %s", err)
+	}
+
+	rhsmClient, err := setupTestingRHSMClient(testingFiles, server, nil)
+	if err != nil {
+		t.Fatalf("unable to setup testing rhsm client: %s", err)
+	}
+
+	certFilePath, keyFilePath, err := rhsmClient.UpdateEntitlementCertificate(false, nil)
+	if err == nil {
+		t.Fatalf("UpdateEntitlementCertificate should return an error, when certificate is up to date")
+	}
+
+	var entCertUpToDateError *EntitlementCertificateUpToDateError
+	if !errors.As(err, &entCertUpToDateError) {
+		t.Fatalf("expected EntitlementCertificateUpToDateError, got: %s", err)
+	}
+
+	// Handler function should be called only once
+	if handlerCounter != 1 {
+		t.Fatalf("handler for getting SCA entitlement cert REST API pointed not called once, but called: %d",
+			handlerCounter)
+	}
+
+	// Entitlement cert & key should be installed
+	isEmpty, err := isDirEmpty(&testingFiles.EntitlementDirPath)
+	if err != nil {
+		t.Fatalf("unable to read content of: %s: %s", testingFiles.EntitlementDirPath, err)
+	}
+	if isEmpty == true {
+		t.Fatalf("no entitlement cert or key has been installed to: %s",
+			testingFiles.EntitlementDirPath)
+	}
+
+	// Test that entitlement cert is still installed
+	expectedEntCertFilePath := filepath.Join(testingFiles.EntitlementDirPath, "4709416649487329566.pem")
+	if _, err := os.Stat(expectedEntCertFilePath); err != nil {
+		t.Fatalf("expected entitlement cert: %s is not installed: %s", expectedEntCertFilePath, err)
+	}
+
+	if *certFilePath != expectedEntCertFilePath {
+		t.Fatalf("expected entitlement cert: %s is not installed; instead: %s is installed",
+			expectedEntCertFilePath, *certFilePath)
+	}
+
+	// Test that entitlement key is still installed
+	expectedEntKeyFilePath := filepath.Join(testingFiles.EntitlementDirPath, "4709416649487329566-key.pem")
+	if _, err := os.Stat(expectedEntKeyFilePath); err != nil {
+		t.Fatalf("expected entitlement key: %s is not installed: %s", expectedEntKeyFilePath, err)
+	}
+
+	if *keyFilePath != expectedEntKeyFilePath {
+		t.Fatalf("expected entitlement key: %s is not installed; instead: %s is installed",
+			expectedEntKeyFilePath, *keyFilePath)
 	}
 }
 
@@ -592,22 +703,32 @@ func TestUpdateEntitlementCertificate_SameSerialReissue(t *testing.T) {
 		t.Fatalf("unable to setup testing rhsm client: %s", err)
 	}
 
-	certPath := filepath.Join(testingFiles.EntitlementDirPath, testEntCertSerialNumber+".pem")
-	if _, err := os.Stat(certPath); err != nil {
+	expectedCertFilePath := filepath.Join(testingFiles.EntitlementDirPath, testEntCertSerialNumber+".pem")
+	if _, err := os.Stat(expectedCertFilePath); err != nil {
 		t.Fatalf("precondition failed: cert should exist before update: %s", err)
 	}
 
-	if err := rhsmClient.UpdateEntitlementCertificate(false, nil); err != nil {
-		t.Fatalf("UpdateEntitlementCertificate failed: %s", err)
+	certFilePath, keyFilePath, err := rhsmClient.UpdateEntitlementCertificate(false, nil)
+	if err != nil {
+		t.Fatalf("expected entitlement cert: %s is not installed", expectedCertFilePath)
 	}
 
-	if _, err := os.Stat(certPath); err != nil {
-		t.Fatalf("entitlement cert %s was deleted after refresh with same serial: %s", certPath, err)
+	if *certFilePath != expectedCertFilePath {
+		t.Fatalf("UpdateEntitlementCertificate failed: cert file path does not match")
 	}
 
-	keyPath := filepath.Join(testingFiles.EntitlementDirPath, testEntCertSerialNumber+"-key.pem")
-	if _, err := os.Stat(keyPath); err != nil {
-		t.Fatalf("expected entitlement key %s to still exist: %s", keyPath, err)
+	if _, err := os.Stat(expectedCertFilePath); err != nil {
+		t.Fatalf("entitlement cert %s was deleted after refresh with same serial: %s", expectedCertFilePath, err)
+	}
+
+	expectedKeyFilePath := filepath.Join(testingFiles.EntitlementDirPath, testEntCertSerialNumber+"-key.pem")
+	if _, err := os.Stat(expectedKeyFilePath); err != nil {
+		t.Fatalf("expected entitlement key %s to still exist: %s", expectedKeyFilePath, err)
+	}
+
+	if *keyFilePath != expectedKeyFilePath {
+		t.Fatalf("expected entitlement key: %s is not installed; instead: %s is installed",
+			expectedKeyFilePath, *keyFilePath)
 	}
 }
 
@@ -654,7 +775,7 @@ func TestUpdateEntitlementCertificate_Force(t *testing.T) {
 		t.Fatalf("unable to setup testing rhsm client: %s", err)
 	}
 
-	err = rhsmClient.UpdateEntitlementCertificate(true, nil)
+	_, _, err = rhsmClient.UpdateEntitlementCertificate(true, nil)
 	if err != nil {
 		t.Fatalf("failed to force update SCA entitlement cert and key: %s", err)
 	}

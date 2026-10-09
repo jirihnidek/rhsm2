@@ -200,6 +200,16 @@ type UpdatedEntitlementCertificate struct {
 	LastUpdate     string      `json:"lastUpdate"`
 }
 
+// EntitlementCertificateUpToDateError is returned by UpdateEntitlementCertificate, when
+// candlepin server response with 304 error. It means that the certificate is up to date
+// and it is not necessary to modify certificate file nor key. It is actually not real
+// error state, but it helps to signal that certificate wasn't necessary to update.
+type EntitlementCertificateUpToDateError struct{}
+
+func (e *EntitlementCertificateUpToDateError) Error() string {
+	return "entitlement certificate is up to date"
+}
+
 // UpdateEntitlementCertificate tries to update the installed entitlement certificate using
 // GET method "/consumers/"+*consumerUuid+"/accessible_content" with If-Modified-Since header.
 // When the SCA entitlement certificate has not been modified since the installation, then candlepin
@@ -208,15 +218,15 @@ type UpdatedEntitlementCertificate struct {
 // to install the new certificate and then delete the old one.
 // When force is true, the If-Modified-Since header is omitted, so candlepin always returns a fresh
 // certificate instead of a 304.
-func (rhsmClient *RHSMClient) UpdateEntitlementCertificate(force bool, metadata *RequestMetadata) error {
+func (rhsmClient *RHSMClient) UpdateEntitlementCertificate(force bool, metadata *RequestMetadata) (*string, *string, error) {
 	consumerUuid, err := rhsmClient.GetConsumerUUID()
 	if err != nil {
-		return fmt.Errorf("failed to get consumer certificate: %v", err)
+		return nil, nil, fmt.Errorf("failed to get consumer certificate: %v", err)
 	}
 
 	installedCerts, err := rhsmClient.getInstalledEntitlementCertificateKeys()
 	if err != nil {
-		return fmt.Errorf("failed to get installed entitlement certificates: %v", err)
+		return nil, nil, fmt.Errorf("failed to get installed entitlement certificates: %v", err)
 	}
 
 	// Try to get the path of SCA entitlement certificate and key and the last modified time of the certificate.
@@ -246,7 +256,7 @@ func (rhsmClient *RHSMClient) UpdateEntitlementCertificate(force bool, metadata 
 
 	connection, err := rhsmClient.getCertAuthConnection()
 	if err != nil {
-		return fmt.Errorf("unable to get consumer cert auth connection: %v", err)
+		return nil, nil, fmt.Errorf("unable to get consumer cert auth connection: %v", err)
 	}
 
 	res, err := connection.request(
@@ -260,23 +270,22 @@ func (rhsmClient *RHSMClient) UpdateEntitlementCertificate(force bool, metadata 
 		metadata)
 
 	if err != nil {
-		return fmt.Errorf("getting accessible content failed: %s", err)
+		return nil, nil, fmt.Errorf("getting accessible content failed: %s", err)
 	}
 
 	if res.StatusCode == http.StatusNotModified {
-		log.Debug().Msg("entitlement certificate is up to date")
-		return nil
+		return &certPath, &keyPath, &EntitlementCertificateUpToDateError{}
 	}
 
 	resBody, err := getResponseBody(res)
 	if err != nil {
-		return err
+		return nil, nil, err
 	}
 
 	var updatedEntitlementCertificate UpdatedEntitlementCertificate
 
 	if err := json.Unmarshal([]byte(*resBody), &updatedEntitlementCertificate); err != nil {
-		return fmt.Errorf("failed to unmarshal accessible content response: %v", err)
+		return nil, nil, fmt.Errorf("failed to unmarshal accessible content response: %v", err)
 	}
 
 	var updateCerts = make(map[string][]string)
@@ -310,21 +319,22 @@ func (rhsmClient *RHSMClient) UpdateEntitlementCertificate(force bool, metadata 
 				updateCerts[fieldName] = stringSlice
 				break
 			} else {
-				return fmt.Errorf("accessible content does not contain expected fields")
+				return nil, nil, fmt.Errorf("accessible content does not contain expected fields")
 			}
 		}
 	} else {
-		return fmt.Errorf("accessible content does not contain expected fields")
+		return nil, nil, fmt.Errorf("accessible content does not contain expected fields")
 	}
 
 	if len(updateCerts) == 0 {
-		return fmt.Errorf("accessible content %v does not contain any new certificates", updatedEntitlementCertificate.ContentListing)
+		return nil, nil, fmt.Errorf("accessible content %v does not contain any new certificates",
+			updatedEntitlementCertificate.ContentListing)
 	}
 
 	// Get the first certificate from the map of certificates IDs
-	newEntCertInstalled := false
 	var newCertId string
-	var newCertPath string
+	var newCertFilePath string
+	var newKeyFilePath string
 	var foundCertId string
 	var foundCertContent string
 	for certId, stringSlice := range updateCerts {
@@ -333,6 +343,7 @@ func (rhsmClient *RHSMClient) UpdateEntitlementCertificate(force bool, metadata 
 			// Join the string slice into a single string, because each item of the slice
 			// can contain one or multiple blocks of the certificate.
 			foundCertContent = strings.Join(stringSlice, "")
+			// There should not be other certificates in the pure SCA world
 			break
 		}
 	}
@@ -341,25 +352,27 @@ func (rhsmClient *RHSMClient) UpdateEntitlementCertificate(force bool, metadata 
 		certFilePath := filepath.Join(rhsmClient.RHSMConf.RHSM.EntitlementCertDir, foundCertId+".pem")
 		err := writePemFile(&certFilePath, &foundCertContent, nil)
 		if err != nil {
-			return fmt.Errorf("unable to write entitlement certificate %s: %s", certFilePath, err)
+			return nil, nil, fmt.Errorf("unable to write entitlement certificate %s: %s", certFilePath, err)
 		}
 		log.Info().Msgf("wrote a new entitlement certificate %s", certFilePath)
-		newEntCertInstalled = true
 		newCertId = foundCertId
-		newCertPath = certFilePath
+		newCertFilePath = certFilePath
+	} else {
+		return nil, nil, fmt.Errorf("accessible content %v contains only empty strings",
+			updatedEntitlementCertificate.ContentListing)
 	}
 
 	// When a new entitlement certificate is installed, rename the existing key file and then
 	// delete the old certificate. When the reissued certificate keeps the same serial number,
 	// newCertPath is the same file that was just written above, so renaming/removing would
 	// destroy the certificate that was just installed -- skip both in that case.
-	if newEntCertInstalled && newCertPath != certPath {
-		newKeyFilePath := filepath.Join(rhsmClient.RHSMConf.RHSM.EntitlementCertDir, newCertId+"-key.pem")
+	if newCertFilePath != certPath {
+		newKeyFilePath = filepath.Join(rhsmClient.RHSMConf.RHSM.EntitlementCertDir, newCertId+"-key.pem")
 		err = os.Rename(keyPath, newKeyFilePath)
 		if err != nil {
 			// When it is not possible to rename the key file, remove the new certificate
-			_ = os.Remove(newCertPath)
-			return fmt.Errorf("unable to rename entitlement key from %s to %s: %s", keyPath, newKeyFilePath, err)
+			_ = os.Remove(newCertFilePath)
+			return nil, nil, fmt.Errorf("unable to rename entitlement key from %s to %s: %s", keyPath, newKeyFilePath, err)
 		}
 		log.Info().Msgf("renamed entitlement key to %s", newKeyFilePath)
 		err = os.Remove(certPath)
@@ -368,7 +381,10 @@ func (rhsmClient *RHSMClient) UpdateEntitlementCertificate(force bool, metadata 
 		} else {
 			log.Info().Msgf("removed old entitlement certificate %s", certPath)
 		}
+	} else {
+		// Return existing key in the case the certificate ID is still the same
+		newKeyFilePath = keyPath
 	}
 
-	return nil
+	return &newCertFilePath, &newKeyFilePath, nil
 }
