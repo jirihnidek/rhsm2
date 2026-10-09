@@ -204,10 +204,12 @@ type UpdatedEntitlementCertificate struct {
 // candlepin server response with 304 error. It means that the certificate is up to date
 // and it is not necessary to modify certificate file nor key. It is actually not real
 // error state, but it helps to signal that certificate wasn't necessary to update.
-type EntitlementCertificateUpToDateError struct{}
+type EntitlementCertificateUpToDateError struct {
+	EntitlementCertificateFilePath string
+}
 
 func (e *EntitlementCertificateUpToDateError) Error() string {
-	return "entitlement certificate is up to date"
+	return fmt.Sprintf("entitlement certificate %s is up to date", e.EntitlementCertificateFilePath)
 }
 
 // UpdateEntitlementCertificate tries to update the installed entitlement certificate using
@@ -229,29 +231,38 @@ func (rhsmClient *RHSMClient) UpdateEntitlementCertificate(force bool, metadata 
 		return nil, nil, fmt.Errorf("failed to get installed entitlement certificates: %v", err)
 	}
 
+	numberOfEntCerts := len(installedCerts)
+	if numberOfEntCerts > 1 {
+		log.Warn().Msgf("More than one entitlement certificate installed: %d", numberOfEntCerts)
+	}
+
 	// Try to get the path of SCA entitlement certificate and key and the last modified time of the certificate.
 	var lastModified time.Time
 	var keyPath string
 	var certPath string
 	for _, certKey := range installedCerts {
-		if certKey.CertPath != nil {
+		if certKey.CertPath != nil && certKey.KeyPath != nil {
 			fileInfo, err := os.Stat(*certKey.CertPath)
 			if err != nil {
 				log.Debug().Msgf("failed to get file info for %s: %v", *certKey.CertPath, err)
 				continue
 			}
+			// Keep paths of the newest pair together with its modification time
 			modTime := fileInfo.ModTime()
 			if modTime.After(lastModified) {
 				lastModified = modTime
+				keyPath = *certKey.KeyPath
+				certPath = *certKey.CertPath
 			}
-			keyPath = *certKey.KeyPath
-			certPath = *certKey.CertPath
 		}
 	}
 
+	lastModifiedDate := lastModified.UTC().Format(time.RFC1123)
+	log.Debug().Msgf("entitlement certificate %s was the last modified: %s", certPath, lastModifiedDate)
+
 	var headers = make(map[string]string)
 	if !force && !lastModified.IsZero() {
-		headers["If-Modified-Since"] = lastModified.UTC().Format(time.RFC1123)
+		headers["If-Modified-Since"] = lastModifiedDate
 	}
 
 	connection, err := rhsmClient.getCertAuthConnection()
@@ -274,7 +285,9 @@ func (rhsmClient *RHSMClient) UpdateEntitlementCertificate(force bool, metadata 
 	}
 
 	if res.StatusCode == http.StatusNotModified {
-		return &certPath, &keyPath, &EntitlementCertificateUpToDateError{}
+		return &certPath, &keyPath, &EntitlementCertificateUpToDateError{
+			EntitlementCertificateFilePath: certPath,
+		}
 	}
 
 	resBody, err := getResponseBody(res)
@@ -326,9 +339,13 @@ func (rhsmClient *RHSMClient) UpdateEntitlementCertificate(force bool, metadata 
 		return nil, nil, fmt.Errorf("accessible content does not contain expected fields")
 	}
 
-	if len(updateCerts) == 0 {
+	numberOfUpdatedEntCerts := len(updateCerts)
+	if numberOfUpdatedEntCerts == 0 {
 		return nil, nil, fmt.Errorf("accessible content %v does not contain any new certificates",
 			updatedEntitlementCertificate.ContentListing)
+	} else if numberOfUpdatedEntCerts > 1 {
+		// This should not happen in pure SCA world
+		log.Warn().Msgf("candlepin returned more than one entitlement certificate: %d", numberOfUpdatedEntCerts)
 	}
 
 	// Get the first certificate from the map of certificates IDs
