@@ -163,3 +163,18 @@ func (rhsmClient *RHSMClient) GetServerStatus(metadata *RequestMetadata) (*RHSMS
 
 	return &rhsmStatus, nil
 }
+
+// HasCapability reports whether candlepin advertises the given capability in its
+// GET /status response.
+func (rhsmClient *RHSMClient) HasCapability(capability string, metadata *RequestMetadata) (bool, error) {
+	status, err := rhsmClient.GetServerStatus(metadata)
+	if err != nil {
+		return false, err
+	}
+	for _, c := range status.ManagerCapabilities {
+		if c == capability {
+			return true, nil
+		}
+	}
+	return false, nil
+}
