@@ -12,6 +12,8 @@ import (
 
 const DefaultRHSMConfFilePath = "/etc/rhsm/rhsm.conf"
 
+const DefaultServerTimeout = 180
+
 // Note: not all fields of configuration are used ATM
 
 // RHSMConfServer represents section [server] in rhsm.conf
