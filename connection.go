@@ -6,6 +6,7 @@ import (
 	"crypto/x509"
 	"fmt"
 	"io"
+	"math"
 	"net"
 	"net/http"
 	"net/url"
@@ -276,6 +277,20 @@ func (rhsmClient *RHSMClient) createHTTPsClient(certFile *string, keyFile *strin
 	}
 
 	var client *http.Client
+	// Set timeout for HTTP requests to rhsm server defaults. Note that this is not the
+	// timeout for the connection itself, but rather the timeout for the entire request.
+	// There are other timeouts in the play. Look at: http.DefaultTransport
+	serverTimeout := time.Duration(DefaultServerTimeout) * time.Second
+	timeoutSeconds := rhsmClient.RHSMConf.Server.Timeout
+	// The time.Duration is int64 number of nanoseconds. Values bigger than maxTimeoutSeconds
+	// would overflow and it could result in zero or negative timeout (no timeout).
+	const maxTimeoutSeconds = int64(math.MaxInt64 / time.Second)
+	if timeoutSeconds >= 0 && timeoutSeconds <= maxTimeoutSeconds {
+		serverTimeout = time.Duration(timeoutSeconds) * time.Second
+	} else if timeoutSeconds > maxTimeoutSeconds {
+		log.Warn().Msgf("server_timeout %d is too big (max: %d), using default: %d",
+			timeoutSeconds, maxTimeoutSeconds, DefaultServerTimeout)
+	}
 
 	// If env variables are set, then client will pretty print some
 	// debug information to stdout using
@@ -297,9 +312,9 @@ func (rhsmClient *RHSMClient) createHTTPsClient(certFile *string, keyFile *strin
 			SkipSanitize:    true,
 		}
 		roundTripper := logger.RoundTripper(transport)
-		client = &http.Client{Transport: roundTripper}
+		client = &http.Client{Transport: roundTripper, Timeout: serverTimeout}
 	} else {
-		client = &http.Client{Transport: transport}
+		client = &http.Client{Transport: transport, Timeout: serverTimeout}
 	}
 
 	return client, nil

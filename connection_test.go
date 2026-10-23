@@ -1,11 +1,14 @@
 package rhsm2
 
 import (
+	"encoding/pem"
 	"fmt"
+	"math"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -684,5 +687,188 @@ func TestGetNoAuthConnection(t *testing.T) {
 	// Verify connection has transport configured
 	if connection.Client == nil {
 		t.Fatalf("connection http client should not be nil")
+	}
+}
+
+// writeServerCACert writes the certificate of the testing TLS server to the CA directory,
+// so http.Client created by createHTTPsClient() trusts the testing server
+func writeServerCACert(caDirPath string, server *httptest.Server) error {
+	pemBlock := pem.EncodeToMemory(&pem.Block{
+		Type:  "CERTIFICATE",
+		Bytes: server.Certificate().Raw,
+	})
+	return os.WriteFile(filepath.Join(caDirPath, "test-server-ca.pem"), pemBlock, 0644)
+}
+
+// TestCreateHTTPsClientTimeout test that http.Client created by createHTTPsClient()
+// has Timeout set according to the server_timeout in rhsm.conf
+func TestCreateHTTPsClientTimeout(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name            string
+		serverTimeout   int64
+		expectedTimeout time.Duration
+	}{
+		{name: "unset timeout", serverTimeout: -1, expectedTimeout: DefaultServerTimeout * time.Second},
+		{name: "no timeout", serverTimeout: 0, expectedTimeout: 0},
+		{name: "minimal timeout", serverTimeout: 1, expectedTimeout: time.Second},
+		{name: "bigger timeout", serverTimeout: 10, expectedTimeout: 10 * time.Second},
+		{name: "default timeout", serverTimeout: DefaultServerTimeout, expectedTimeout: DefaultServerTimeout * time.Second},
+		{
+			name:            "maximal timeout",
+			serverTimeout:   int64(math.MaxInt64 / time.Second),
+			expectedTimeout: (math.MaxInt64 / time.Second) * time.Second,
+		},
+		{
+			// This value overflows time.Duration to a negative value
+			name:            "overflowing timeout",
+			serverTimeout:   int64(math.MaxInt64/time.Second) + 1,
+			expectedTimeout: DefaultServerTimeout * time.Second,
+		},
+		{
+			// This value overflows time.Duration to zero
+			name:            "overflowing timeout to zero",
+			serverTimeout:   1 << 55,
+			expectedTimeout: DefaultServerTimeout * time.Second,
+		},
+		{name: "maximal int64 timeout", serverTimeout: math.MaxInt64, expectedTimeout: DefaultServerTimeout * time.Second},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+
+			testingFiles, err := setupTestingFileSystem(
+				t.TempDir(), false, false, false, false, false)
+			if err != nil {
+				t.Fatalf("unable to setup testing environment: %s", err)
+			}
+
+			rhsmClient, err := setupTestingRHSMClient(testingFiles, nil, nil)
+			if err != nil {
+				t.Fatalf("unable to setup testing rhsm client: %s", err)
+			}
+			rhsmClient.RHSMConf.Server.Timeout = testCase.serverTimeout
+
+			client, err := rhsmClient.createHTTPsClient(nil, nil)
+			if err != nil {
+				t.Fatalf("unable to create https client: %s", err)
+			}
+
+			if client.Timeout != testCase.expectedTimeout {
+				t.Fatalf("expected http client timeout: %v, got: %v", testCase.expectedTimeout, client.Timeout)
+			}
+		})
+	}
+}
+
+// TestCreateHTTPsClientTimeoutDebugPrint test that http.Client created by createHTTPsClient()
+// has Timeout set, when debug printing of requests and responses is enabled
+func TestCreateHTTPsClientTimeoutDebugPrint(t *testing.T) {
+	// It is not possible to use t.Parallel() together with t.Setenv()
+	t.Setenv("SUBMAN_DEBUG_PRINT_REQUEST", "1")
+	t.Setenv("SUBMAN_DEBUG_PRINT_RESPONSE", "1")
+
+	testingFiles, err := setupTestingFileSystem(
+		t.TempDir(), false, false, false, false, false)
+	if err != nil {
+		t.Fatalf("unable to setup testing environment: %s", err)
+	}
+
+	rhsmClient, err := setupTestingRHSMClient(testingFiles, nil, nil)
+	if err != nil {
+		t.Fatalf("unable to setup testing rhsm client: %s", err)
+	}
+	rhsmClient.RHSMConf.Server.Timeout = 1
+
+	client, err := rhsmClient.createHTTPsClient(nil, nil)
+	if err != nil {
+		t.Fatalf("unable to create https client: %s", err)
+	}
+
+	if client.Timeout != time.Second {
+		t.Fatalf("expected http client timeout: %v, got: %v", time.Second, client.Timeout)
+	}
+}
+
+// TestHTTPsClientTimeoutExceeded test that request is canceled, when server does not
+// respond within server_timeout set in rhsm.conf, and that request succeeds, when
+// server responds in time. The /status endpoint is used for testing
+func TestHTTPsClientTimeoutExceeded(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name          string
+		responseDelay time.Duration
+		expectTimeout bool
+	}{
+		{name: "server responds in time", responseDelay: 0, expectTimeout: false},
+		{name: "server does not respond in time", responseDelay: 5 * time.Second, expectTimeout: true},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+
+			server := httptest.NewTLSServer(
+				http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
+					// Wait for the response delay or until the client cancels the request
+					select {
+					case <-time.After(testCase.responseDelay):
+					case <-req.Context().Done():
+						return
+					}
+					rw.WriteHeader(200)
+					_, _ = rw.Write([]byte(serverStatusResponse))
+				}))
+			defer server.Close()
+
+			// System is not registered, so no-auth connection will be used
+			testingFiles, err := setupTestingFileSystem(
+				t.TempDir(), false, false, false, false, false)
+			if err != nil {
+				t.Fatalf("unable to setup testing environment: %s", err)
+			}
+
+			err = writeServerCACert(testingFiles.CACertDirPath, server)
+			if err != nil {
+				t.Fatalf("unable to write CA certificate of testing server: %s", err)
+			}
+
+			rhsmClient, err := setupTestingRHSMClient(testingFiles, server, nil)
+			if err != nil {
+				t.Fatalf("unable to setup testing rhsm client: %s", err)
+			}
+			// Set minimal possible timeout and drop the mocked connection, so a new
+			// connection is created using createHTTPsClient()
+			rhsmClient.RHSMConf.Server.Timeout = 1
+			rhsmClient.noAuthConnection = nil
+
+			start := time.Now()
+			serverStatus, err := rhsmClient.GetServerStatus(nil)
+			elapsed := time.Since(start)
+
+			if !testCase.expectTimeout {
+				if err != nil {
+					t.Fatalf("getting server status failed: %s", err)
+				}
+				expectedServerVer := "4.3.8"
+				if serverStatus.Version != expectedServerVer {
+					t.Fatalf("expected server version: %s, got: %s", expectedServerVer, serverStatus.Version)
+				}
+				return
+			}
+
+			if err == nil {
+				t.Fatalf("getting server status should fail, when server does not respond in time")
+			}
+			if !strings.Contains(err.Error(), "Client.Timeout exceeded") {
+				t.Fatalf("expected error caused by client timeout, got: %s", err)
+			}
+			if elapsed >= testCase.responseDelay {
+				t.Fatalf("request should be canceled after timeout, but it took: %v", elapsed)
+			}
+		})
 	}
 }
