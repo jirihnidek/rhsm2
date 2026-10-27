@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"slices"
 
 	"github.com/rs/zerolog/log"
 )
@@ -162,4 +163,14 @@ func (rhsmClient *RHSMClient) GetServerStatus(metadata *RequestMetadata) (*RHSMS
 	}
 
 	return &rhsmStatus, nil
+}
+
+// HasCapability reports whether candlepin advertises the given capability in its
+// GET /status response.
+func (rhsmClient *RHSMClient) HasCapability(capability string, metadata *RequestMetadata) (bool, error) {
+	status, err := rhsmClient.GetServerStatus(metadata)
+	if err != nil {
+		return false, err
+	}
+	return slices.Contains(status.ManagerCapabilities, capability), nil
 }
