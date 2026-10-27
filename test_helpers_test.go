@@ -8,6 +8,8 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+
+	"gopkg.in/ini.v1"
 )
 
 // Here is set of JSON documents returned by candlepin server in body of response,
@@ -87,6 +89,7 @@ func copyFile(srcFilePath *string, dstFilePath *string, perm *os.FileMode) error
 type TestingFileSystem struct {
 	EtcDirPath             string
 	OsReleaseFilePath      string
+	RHSMConfFilePath       string
 	DnfVarsReleaseFilePath string
 	CACertDirPath          string
 	ConsumerDirPath        string
@@ -182,6 +185,17 @@ func (testingFileSystem *TestingFileSystem) setupOsReleaseFile(srcFileName strin
 	return nil
 }
 
+func (testingFileSystem *TestingFileSystem) setupRhsmConfFile(srcFileName string, perm *os.FileMode) error {
+	srcRhsmConfFilePath := "./testdata/etc/rhsm/" + srcFileName
+	dstRhsmConfFilePath := filepath.Join(testingFileSystem.EtcDirPath, "rhsm", "rhsm.conf")
+	err := copyFile(&srcRhsmConfFilePath, &dstRhsmConfFilePath, perm)
+	if err != nil {
+		return fmt.Errorf("unable to create testing rhsm.conf file: %s", err)
+	}
+	testingFileSystem.RHSMConfFilePath = dstRhsmConfFilePath
+	return nil
+}
+
 // setupTestingFiles tries to copy and generate testing files to testing directories
 func setupTestingFiles(
 	testingFileSystem *TestingFileSystem,
@@ -196,6 +210,12 @@ func setupTestingFiles(
 	err := testingFileSystem.setupOsReleaseFile("os-release", perm)
 	if err != nil {
 		return fmt.Errorf("unable to create testing os-release file: %s", err)
+	}
+
+	// Create /etc/rhsm/rhsm.conf
+	err = testingFileSystem.setupRhsmConfFile("rhsm.conf", perm)
+	if err != nil {
+		return fmt.Errorf("unable to create testing rhsm.conf file: %s", err)
 	}
 
 	if syspurposeFilesInstalled {
@@ -426,6 +446,7 @@ func setupTestingRHSMClient(testingFiles *TestingFileSystem, server *httptest.Se
 
 	// Fill rhsm conf with fake data and temporary paths
 	rhsmClient.RHSMConf = &RHSMConf{
+		rhsmConfFilePath:       testingFiles.RHSMConfFilePath,
 		yumRepoFilePath:        testingFiles.YumRepoFilePath,
 		syspurposeFilePath:     testingFiles.SyspurposeFilePath,
 		osReleaseFilePath:      testingFiles.OsReleaseFilePath,
@@ -500,7 +521,44 @@ func setupTestingRHSMClient(testingFiles *TestingFileSystem, server *httptest.Se
 		}
 	}
 
-	// TODO: populate rhsm.conf with paths of temporary files and server hostname, port, prefix, etc.
+	// Populate testing rhsm.conf with paths of temporary files and server hostname, port, prefix, etc.
+	cfg, err := ini.Load(testingFiles.RHSMConfFilePath)
+	if err != nil {
+		return nil, fmt.Errorf("unable to load testing rhsm.conf file: %s", err)
+	}
+	rhsmSection := cfg.Section("rhsm")
+	rhsmSection.Key("ca_cert_dir").SetValue(rhsmClient.RHSMConf.RHSM.CACertDir)
+	rhsmSection.Key("consumer_cert_dir").SetValue(rhsmClient.RHSMConf.RHSM.ConsumerCertDir)
+	rhsmSection.Key("entitlement_cert_dir").SetValue(rhsmClient.RHSMConf.RHSM.EntitlementCertDir)
+	rhsmSection.Key("product_cert_dir").SetValue(rhsmClient.RHSMConf.RHSM.ProductCertDir)
+	if cdn != nil {
+		rhsmSection.Key("baseurl").SetValue(rhsmClient.RHSMConf.RHSM.BaseURL)
+	}
+	if server != nil {
+		serverSection := cfg.Section("server")
+		serverSection.Key("hostname").SetValue(rhsmClient.RHSMConf.Server.Hostname)
+		serverSection.Key("port").SetValue(rhsmClient.RHSMConf.Server.Port)
+		serverSection.Key("prefix").SetValue(rhsmClient.RHSMConf.Server.Prefix)
+	}
+
+	rhsmConfFileInfo, err := os.Stat(testingFiles.RHSMConfFilePath)
+	if err != nil {
+		return nil, fmt.Errorf("unable to stat testing rhsm.conf file: %s", err)
+	}
+	// Make sure the file is writable
+	rhsmConfFileMode := rhsmConfFileInfo.Mode().Perm()
+	if err = os.Chmod(testingFiles.RHSMConfFilePath, rhsmConfFileMode|0200); err != nil {
+		return nil, fmt.Errorf("unable to make testing rhsm.conf writable: %s", err)
+	}
+	// Write a new configuration to rhsm.conf
+	err = cfg.SaveTo(testingFiles.RHSMConfFilePath)
+	if err != nil {
+		return nil, fmt.Errorf("unable to save testing rhsm.conf file: %s", err)
+	}
+	err = os.Chmod(testingFiles.RHSMConfFilePath, rhsmConfFileMode)
+	if err != nil {
+		return nil, fmt.Errorf("unable to set file permissions: %w", err)
+	}
 
 	return &rhsmClient, nil
 }

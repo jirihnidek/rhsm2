@@ -3,8 +3,12 @@ package rhsm2
 import (
 	"net/http"
 	"net/http/httptest"
+	"net/url"
+	"path/filepath"
 	"strconv"
 	"testing"
+
+	"gopkg.in/ini.v1"
 )
 
 // TestGetEngineeringProducts tests the case, when engineering products are
@@ -165,6 +169,20 @@ func TestGetContentFromEntCert(t *testing.T) {
 	// Note: if you are bored, then add tests for remaining fields of 'content' struct
 }
 
+type TestRepo struct {
+	Name            string `ini:"name"`
+	BaseURL         string `ini:"baseurl"`
+	Enabled         bool   `ini:"enabled"`
+	EnabledMetadata bool   `ini:"enabled_metadata"`
+	GPGCheck        bool   `ini:"gpgcheck"`
+	GPGKey          string `ini:"gpgkey"`
+	SSLVerify       bool   `ini:"sslverify"`
+	SSLCACert       string `ini:"sslcacert"`
+	SSLClientCert   string `ini:"sslclientcert"`
+	SSLClientKey    string `ini:"sslclientkey"`
+	MetadataExpire  int    `ini:"metadata_expire"`
+}
+
 // TestWriteRepoFile test the case, when content definition from
 // entitlement certificate is successfully written to repo file
 func TestWriteRepoFile(t *testing.T) {
@@ -177,6 +195,14 @@ func TestWriteRepoFile(t *testing.T) {
 		}))
 	defer server.Close()
 
+	cdnServer := httptest.NewTLSServer(
+		// There should be no REST API call in this case
+		http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
+			t.Fatalf("no REST API call needed for generating redhat.repo, %s %s called",
+				req.Method, req.URL.String())
+		}))
+	defer cdnServer.Close()
+
 	// Create root directory for this test
 	tempDirFilePath := t.TempDir()
 
@@ -186,7 +212,7 @@ func TestWriteRepoFile(t *testing.T) {
 		t.Fatalf("unable to setup testing environment: %s", err)
 	}
 
-	rhsmClient, err := setupTestingRHSMClient(testingFiles, server, nil)
+	rhsmClient, err := setupTestingRHSMClient(testingFiles, server, cdnServer)
 	if err != nil {
 		t.Fatalf("unable to setup testing rhsm client: %s", err)
 	}
@@ -195,6 +221,125 @@ func TestWriteRepoFile(t *testing.T) {
 
 	if err != nil {
 		t.Fatalf("unable to generate '%s': %s", testingFiles.YumRepoFilePath, err)
+	}
+
+	repoFile, err := ini.Load(testingFiles.YumRepoFilePath)
+	if err != nil {
+		t.Fatalf("unable to read '%s' as INI: %s", testingFiles.YumRepoFilePath, err)
+	}
+
+	baseURL := rhsmClient.RHSMConf.RHSM.BaseURL
+	expectedURLFound := false
+	for _, repo := range repoFile.Sections() {
+		var testRepo TestRepo
+		err = repo.MapTo(&testRepo)
+		if err != nil {
+			t.Fatalf("unable to map repo: %s", err)
+		}
+
+		if testRepo.Name == "awesomeos-x86_64-only-content-213412341236" {
+			expectedURL, err := url.Parse(baseURL + "/path/to/awesomeos/x86_64_content/213412341236-6401")
+			if err != nil {
+				t.Fatalf("unable to parse expected URL: %s", err)
+			}
+			if expectedURL.String() != testRepo.BaseURL {
+				t.Fatalf("expected URL %s, got %s", expectedURL, testRepo.BaseURL)
+			}
+			expectedURLFound = true
+			// Only one test is enough
+			break
+		}
+	}
+
+	if !expectedURLFound {
+		t.Fatalf("expected URL not found")
+	}
+}
+
+// TestWriteRepoFileFullURL test the case, when content definition in
+// entitlement certificate contains full URL
+func TestWriteRepoFileFullURL(t *testing.T) {
+	t.Parallel()
+	server := httptest.NewTLSServer(
+		// There should be no REST API call in this case
+		http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
+			t.Fatalf("no REST API call needed for generating redhat.repo, %s %s called",
+				req.Method, req.URL.String())
+		}))
+	defer server.Close()
+
+	cdnServer := httptest.NewTLSServer(
+		// There should be no REST API call in this case
+		http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
+			t.Fatalf("no REST API call needed for generating redhat.repo, %s %s called",
+				req.Method, req.URL.String())
+		}))
+	defer cdnServer.Close()
+
+	// Create root directory for this test
+	tempDirFilePath := t.TempDir()
+
+	testingFiles, err := setupTestingFileSystem(
+		tempDirFilePath, false, true, false, false, false)
+	if err != nil {
+		t.Fatalf("unable to setup testing environment: %s", err)
+	}
+
+	srcEntCert := "./testdata/use_cases/ent_cert_with_full_url/174185085859391424.pem"
+	dstEntCert := filepath.Join(testingFiles.EntitlementDirPath, "174185085859391424.pem")
+	err = copyFile(&srcEntCert, &dstEntCert, nil)
+	if err != nil {
+		t.Fatalf("unable to copy entitlement certificate: %s", err)
+	}
+
+	rhsmClient, err := setupTestingRHSMClient(testingFiles, server, cdnServer)
+	if err != nil {
+		t.Fatalf("unable to setup testing rhsm client: %s", err)
+	}
+
+	err = rhsmClient.GenerateRepoFileFromInstalledEntitlementCerts()
+
+	if err != nil {
+		t.Fatalf("unable to generate '%s': %s", testingFiles.YumRepoFilePath, err)
+	}
+
+	repoFile, err := ini.Load(testingFiles.YumRepoFilePath)
+	if err != nil {
+		t.Fatalf("unable to load '%s': %s", testingFiles.YumRepoFilePath, err)
+	}
+
+	fullURLCounter := 0
+	for _, repo := range repoFile.Sections() {
+		var testRepo TestRepo
+		err = repo.MapTo(&testRepo)
+		if err != nil {
+			t.Fatalf("unable to map repo: %s", err)
+		}
+		switch testRepo.Name {
+		case "EPEL 9 Everything x86_64":
+			expectedURL := "https://dl.fedoraproject.org/pub/epel/9/Everything/x86_64"
+			if testRepo.BaseURL != expectedURL {
+				t.Fatalf("For %s, expected: %s, got: %s", testRepo.Name, expectedURL, testRepo.BaseURL)
+			}
+			fullURLCounter++
+		case "Red Hat Enterprise Linux 9 for x86_64 - AppStream (RPMs)":
+			expectedURL := "https://cert.console.redhat.com/api/pulp-content/ccac33ac/templates/7ec325b9-d3bb-407b-ab05-58ce63b4bb24/content/dist/rhel9/$releasever/x86_64/appstream/os"
+			if testRepo.BaseURL != expectedURL {
+				t.Fatalf("For %s, expected: %s, got: %s", testRepo.Name, expectedURL, testRepo.BaseURL)
+			}
+			fullURLCounter++
+		case "Red Hat Enterprise Linux 9 for x86_64 - BaseOS (RPMs)":
+			expectedURL := "https://cert.console.redhat.com/api/pulp-content/ccac33ac/templates/7ec325b9-d3bb-407b-ab05-58ce63b4bb24/content/dist/rhel9/$releasever/x86_64/baseos/os"
+			if testRepo.BaseURL != expectedURL {
+				t.Fatalf("For %s, expected: %s, got: %s", testRepo.Name, expectedURL, testRepo.BaseURL)
+			}
+			fullURLCounter++
+		default:
+		}
+	}
+
+	if fullURLCounter != 3 {
+		t.Fatalf("Expected 3 full URLs, got %d", fullURLCounter)
 	}
 }
 
