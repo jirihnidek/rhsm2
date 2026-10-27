@@ -73,8 +73,8 @@ type RHSMConfLogging struct {
 type RHSMConf struct {
 	// Not public attributes
 
-	// filePath is the file path of the configuration file
-	filePath string
+	// rhsmConfFilePath is the file path of the configuration file
+	rhsmConfFilePath string
 
 	// yumRepoFilePath is the file path of the redhat.repo file
 	yumRepoFilePath string
@@ -114,7 +114,7 @@ func (rhsmConf *RHSMConf) setDefaultValues() error {
 
 // load tries to load configuration file (usually /etc/rhsm/rhsm.conf)
 func (rhsmConf *RHSMConf) load() error {
-	cfg, err := ini.Load(rhsmConf.filePath)
+	cfg, err := ini.Load(rhsmConf.rhsmConfFilePath)
 	if err != nil {
 		return err
 	}
@@ -185,7 +185,7 @@ func IsValueAllowed(value *reflect.Value, allowedValues *string) (bool, error) {
 // RHSMConf structure
 func LoadRHSMConf(confFilePath string) (*RHSMConf, error) {
 	rhsmConf := &RHSMConf{
-		filePath:               confFilePath,
+		rhsmConfFilePath:       confFilePath,
 		yumRepoFilePath:        DefaultRepoFilePath,
 		dnfVarsReleaseFilePath: DefaultDnfVarsReleaseFilePath,
 		syspurposeFilePath:     DefaultSystemPurposeFilePath,

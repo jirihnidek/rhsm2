@@ -83,9 +83,23 @@ func (rhsmClient *RHSMClient) writeRepoFile(
 				_, _ = section.NewKey("name", content.Name)
 
 				// baseurl
-				baseURL, err := url.Parse(rhsmClient.RHSMConf.RHSM.BaseURL + content.Path)
+				baseURL, err := url.Parse(content.Path)
+				// The provided content should have valid URL
 				if err != nil {
-					return fmt.Errorf("unable to create parse base URL: %s", err)
+					return fmt.Errorf("unable to add section: %s due to invalid content path '%s': %s",
+						content.Label, content.Path, err)
+				}
+				// When definition of content path contains full URL, then it is left as is.
+				// When there is no scheme, then it is assumed that the content path is relative to the RHSM base URL.
+				// Note: When the full URL provided in content.Path, then there is typically no information
+				// about certificate, key or CA certificate is provided for this content. Thus, this URL
+				// could be arbitrary URL.
+				if baseURL.Scheme == "" {
+					baseURL, err = url.Parse(rhsmClient.RHSMConf.RHSM.BaseURL + content.Path)
+					if err != nil {
+						return fmt.Errorf("unable to add section: %s due to invalid content path '%s%s': %s",
+							content.Label, rhsmClient.RHSMConf.RHSM.BaseURL, content.Path, err)
+					}
 				}
 				_, _ = section.NewKey("baseurl", baseURL.String())
 
