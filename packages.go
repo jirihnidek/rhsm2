@@ -3,10 +3,11 @@ package rhsm2
 import (
 	"fmt"
 
+	rpmdb "github.com/knqyf263/go-rpmdb/pkg"
+
 	// Register the pure-Go sqlite driver under the name "sqlite", which
 	// go-rpmdb uses via sql.Open to read the sqlite rpmdb backend.
-	_ "github.com/glebarez/go-sqlite"
-	rpmdb "github.com/knqyf263/go-rpmdb/pkg"
+	_ "modernc.org/sqlite"
 )
 
 // rpmDBPath is the location of the system rpm database.
