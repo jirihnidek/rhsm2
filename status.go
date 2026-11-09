@@ -17,15 +17,11 @@ type RHSMEndPoints struct {
 	Href string `json:"href"`
 }
 
-// GetServerEndpoints tries to get list of supported server endpoints
-func (rhsmClient *RHSMClient) GetServerEndpoints(metadata *RequestMetadata) (*[]RHSMEndPoints, error) {
-	var rhsmEndPoints []RHSMEndPoints
+// getAvailableConnection tries to get available connection. Return authenticated
+// connection, when it is available. Otherwise, return no-auth connection. No-auth
+// connection is available in all cases.
+func (rhsmClient *RHSMClient) getAvailableConnection() (*RHSMConnection, error) {
 	var connection *RHSMConnection
-
-	var headers = make(map[string]string)
-
-	metadata = sanitizeMetadata(metadata)
-
 	_, err := rhsmClient.GetConsumerUUID()
 	if err == nil {
 		connection, err = rhsmClient.getCertAuthConnection()
@@ -41,7 +37,18 @@ func (rhsmClient *RHSMClient) GetServerEndpoints(metadata *RequestMetadata) (*[]
 			return nil, fmt.Errorf("unable to get no-auth connection: %v", err)
 		}
 	}
+	return connection, err
+}
 
+// GetServerEndpoints tries to get list of supported server endpoints
+func (rhsmClient *RHSMClient) GetServerEndpoints(metadata *RequestMetadata) (*[]RHSMEndPoints, error) {
+	connection, err := rhsmClient.getAvailableConnection()
+	if err != nil {
+		return nil, fmt.Errorf("unable to get connection: %v", err)
+	}
+
+	var headers = make(map[string]string)
+	metadata = sanitizeMetadata(metadata)
 	res, err := connection.request(
 		rhsmClient.UserAgent,
 		http.MethodGet,
@@ -67,6 +74,7 @@ func (rhsmClient *RHSMClient) GetServerEndpoints(metadata *RequestMetadata) (*[]
 		return nil, err
 	}
 
+	var rhsmEndPoints []RHSMEndPoints
 	err = json.Unmarshal([]byte(*resBody), &rhsmEndPoints)
 	if err != nil {
 		return nil, fmt.Errorf("unable to parse server endpoints: %s", err)
@@ -106,29 +114,13 @@ type RHSMStatus struct {
 // GetServerStatus tries to get status from the server. This
 // method is possible to call, when server is connected or not
 func (rhsmClient *RHSMClient) GetServerStatus(metadata *RequestMetadata) (*RHSMStatus, error) {
-	var rhsmStatus RHSMStatus
-	var connection *RHSMConnection
-
-	var headers = make(map[string]string)
-
-	metadata = sanitizeMetadata(metadata)
-
-	_, err := rhsmClient.GetConsumerUUID()
-	if err == nil {
-		connection, err = rhsmClient.getCertAuthConnection()
-		if err != nil {
-			return nil, fmt.Errorf("unable to get consumer cert auth connection: %v", err)
-		}
-	} else {
-		// When no consumer has been installed, then we will
-		// try to use no-auth connection. When server is available,
-		// then this should work
-		connection, err = rhsmClient.getNoAuthConnection()
-		if err != nil {
-			return nil, fmt.Errorf("unable to get no-auth connection: %v", err)
-		}
+	connection, err := rhsmClient.getAvailableConnection()
+	if err != nil {
+		return nil, fmt.Errorf("unable to get connection: %v", err)
 	}
 
+	metadata = sanitizeMetadata(metadata)
+	var headers = make(map[string]string)
 	res, err := connection.request(
 		rhsmClient.UserAgent,
 		http.MethodGet,
@@ -157,6 +149,7 @@ func (rhsmClient *RHSMClient) GetServerStatus(metadata *RequestMetadata) (*RHSMS
 		return nil, err
 	}
 
+	var rhsmStatus RHSMStatus
 	err = json.Unmarshal([]byte(*resBody), &rhsmStatus)
 	if err != nil {
 		return nil, fmt.Errorf("unable to parse server status: %s", err)
