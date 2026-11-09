@@ -100,6 +100,8 @@ type TestingFileSystem struct {
 	SyspurposeFilePath     string
 	YumReposDirPath        string
 	YumRepoFilePath        string
+	CacheDirPath           string
+	StatusCacheFilePath    string
 }
 
 func (testingFileSystem *TestingFileSystem) setupSyspurpose(perm *os.FileMode) error {
@@ -343,6 +345,14 @@ func setupTestingDirectories(tempDirFilePath string, perm os.FileMode) (*Testing
 	}
 	testingFileSystem.YumReposDirPath = *yumReposDirPath
 
+	// Create directory for cache files (e.g. status.json)
+	cacheDirPath, err := createDirectory(tempDirFilePath, "var/cache/rhsm", perm)
+	if err != nil {
+		return nil, err
+	}
+	testingFileSystem.CacheDirPath = *cacheDirPath
+	testingFileSystem.StatusCacheFilePath = filepath.Join(testingFileSystem.CacheDirPath, "status.json")
+
 	return &testingFileSystem, nil
 }
 
@@ -451,6 +461,7 @@ func setupTestingRHSMClient(testingFiles *TestingFileSystem, server *httptest.Se
 		syspurposeFilePath:     testingFiles.SyspurposeFilePath,
 		osReleaseFilePath:      testingFiles.OsReleaseFilePath,
 		dnfVarsReleaseFilePath: testingFiles.DnfVarsReleaseFilePath,
+		statusCacheFilePath:    testingFiles.StatusCacheFilePath,
 		RHSM: RHSMConfRHSM{
 			ConsumerCertDir:       testingFiles.ConsumerDirPath,
 			EntitlementCertDir:    testingFiles.EntitlementDirPath,

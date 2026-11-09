@@ -111,9 +111,46 @@ type RHSMStatus struct {
 	DeviceAuthScope     interface{} `json:"deviceAuthScope"`
 }
 
-// GetServerStatus tries to get status from the server. This
-// method is possible to call, when server is connected or not
+// GetServerStatus returns the status of the server. When a valid (not expired and
+// matching the current consumer and server) cached status exists, then it is
+// returned without contacting the server, to minimize the number of requests to
+// the "/status" endpoint. Otherwise the status is retrieved from the server and
+// the local cache file is refreshed (see DefaultStatusCacheFilePath). When the
+// cache is missing or invalid and the server is not reachable, then an error is
+// returned. The cached status is never returned as a substitute for a failed
+// request, because it could lead to usage of stale data; use
+// GetCachedServerStatus() to read the cache explicitly.
 func (rhsmClient *RHSMClient) GetServerStatus(metadata *RequestMetadata) (*RHSMStatus, error) {
+	return rhsmClient.getServerStatus(false, metadata)
+}
+
+// RefreshServerStatus retrieves the status from the server, ignoring any cached
+// status, and refreshes the local cache file. Use this method when an up-to-date
+// status is required (e.g. after a server upgrade or reconfiguration).
+func (rhsmClient *RHSMClient) RefreshServerStatus(metadata *RequestMetadata) (*RHSMStatus, error) {
+	return rhsmClient.getServerStatus(true, metadata)
+}
+
+// getServerStatus is the core implementation shared by GetServerStatus and
+// RefreshServerStatus. When force is false, a valid cached status is returned
+// without contacting the server.
+func (rhsmClient *RHSMClient) getServerStatus(force bool, metadata *RequestMetadata) (*RHSMStatus, error) {
+	// Identify the current consumer (empty when the system is not registered).
+	// This is used both to tag a freshly written cache and to validate an
+	// existing one.
+	consumerUUID := rhsmClient.currentConsumerUUID()
+
+	// Try to use the cached status, unless a forced refresh was requested.
+	if !force {
+		if cache, err := rhsmClient.readServerStatusCache(); err == nil {
+			if rhsmClient.isStatusCacheValid(cache, consumerUUID) {
+				log.Debug().Msg("using cached server status")
+				status := cache.Status
+				return &status, nil
+			}
+		}
+	}
+
 	connection, err := rhsmClient.getAvailableConnection()
 	if err != nil {
 		return nil, fmt.Errorf("unable to get connection: %v", err)
@@ -153,6 +190,12 @@ func (rhsmClient *RHSMClient) GetServerStatus(metadata *RequestMetadata) (*RHSMS
 	err = json.Unmarshal([]byte(*resBody), &rhsmStatus)
 	if err != nil {
 		return nil, fmt.Errorf("unable to parse server status: %s", err)
+	}
+
+	// Store the successfully retrieved status to the local cache file.
+	// Failure to write the cache is not fatal; it is only logged.
+	if err := rhsmClient.writeServerStatusCache(&rhsmStatus, consumerUUID); err != nil {
+		log.Warn().Msgf("unable to write server status cache: %v", err)
 	}
 
 	return &rhsmStatus, nil
