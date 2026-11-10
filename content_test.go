@@ -4,8 +4,10 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"testing"
 
 	"gopkg.in/ini.v1"
@@ -253,6 +255,81 @@ func TestWriteRepoFile(t *testing.T) {
 
 	if !expectedURLFound {
 		t.Fatalf("expected URL not found")
+	}
+}
+
+// TestWriteRepoFileHeader tests that the generated repo file starts with
+// the disclaimer comment stating that the file is auto-generated and should
+// not be edited manually.
+func TestWriteRepoFileHeader(t *testing.T) {
+	t.Parallel()
+	server := httptest.NewTLSServer(
+		// There should be no REST API call in this case
+		http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
+			t.Fatalf("no REST API call needed for generating redhat.repo, %s %s called",
+				req.Method, req.URL.String())
+		}))
+	defer server.Close()
+
+	cdnServer := httptest.NewTLSServer(
+		// There should be no REST API call in this case
+		http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
+			t.Fatalf("no REST API call needed for generating redhat.repo, %s %s called",
+				req.Method, req.URL.String())
+		}))
+	defer cdnServer.Close()
+
+	// Create root directory for this test
+	tempDirFilePath := t.TempDir()
+
+	testingFiles, err := setupTestingFileSystem(
+		tempDirFilePath, false, true, true, true, true)
+	if err != nil {
+		t.Fatalf("unable to setup testing environment: %s", err)
+	}
+
+	rhsmClient, err := setupTestingRHSMClient(testingFiles, server, cdnServer)
+	if err != nil {
+		t.Fatalf("unable to setup testing rhsm client: %s", err)
+	}
+
+	err = rhsmClient.GenerateRepoFileFromInstalledEntitlementCerts()
+	if err != nil {
+		t.Fatalf("unable to generate '%s': %s", testingFiles.YumRepoFilePath, err)
+	}
+
+	content, err := os.ReadFile(testingFiles.YumRepoFilePath)
+	if err != nil {
+		t.Fatalf("unable to read '%s': %s", testingFiles.YumRepoFilePath, err)
+	}
+
+	expectedHeader := `#
+# Certificate-Based Repositories
+# Managed by (rhsm) rhc / subscription-manager
+#
+# *** This file is auto-generated.  Changes made here will be overwritten. ***
+# *** Use "dnf config-manager --help" if you wish to make changes. ***
+#
+# If this file is empty and this system is subscribed, consider
+# running "dnf repolist" to refresh the available repositories.
+#
+`
+
+	if !strings.HasPrefix(string(content), expectedHeader) {
+		t.Fatalf("generated repo file does not start with the expected disclaimer header, got:\n%s", string(content))
+	}
+
+	// The header must not break parsing of the generated repo file as INI,
+	// and the repo sections have to be still present after the header.
+	repoFile, err := ini.Load(testingFiles.YumRepoFilePath)
+	if err != nil {
+		t.Fatalf("unable to load '%s' as INI after adding header: %s", testingFiles.YumRepoFilePath, err)
+	}
+
+	// ini.Load always returns the DEFAULT section, so there has to be at least
+	// one more section coming from the entitlement certificate content.
+	if len(repoFile.Sections()) < 2 {
+		t.Fatalf("expected at least one repo section besides DEFAULT, got: %d", len(repoFile.Sections()))
 	}
 }
 

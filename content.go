@@ -151,7 +151,29 @@ func (rhsmClient *RHSMClient) writeRepoFile(
 		}
 	}
 
-	err := file.SaveTo(rhsmClient.RHSMConf.yumRepoFilePath)
+	// Disclaimer written at the beginning of the generated repo file
+	const repoFileHeader = `#
+# Certificate-Based Repositories
+# Managed by (rhsm) rhc / subscription-manager
+#
+# *** This file is auto-generated.  Changes made here will be overwritten. ***
+# *** Use "dnf config-manager --help" if you wish to make changes. ***
+#
+# If this file is empty and this system is subscribed, consider
+# running "dnf repolist" to refresh the available repositories.
+#
+
+`
+
+	var buffer bytes.Buffer
+	if _, err := buffer.WriteString(repoFileHeader); err != nil {
+		return fmt.Errorf("unable to write header of repo file: %s", err)
+	}
+	if _, err := file.WriteTo(&buffer); err != nil {
+		return fmt.Errorf("unable to serialize repo file: %s", err)
+	}
+
+	err := os.WriteFile(rhsmClient.RHSMConf.yumRepoFilePath, buffer.Bytes(), 0644)
 	if err != nil {
 		return fmt.Errorf("unable to write to %s: %s",
 			rhsmClient.RHSMConf.yumRepoFilePath, err)
