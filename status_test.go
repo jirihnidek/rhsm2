@@ -172,32 +172,8 @@ func TestGetServerStatus(t *testing.T) {
 	t.Parallel()
 	handlerCounter := 0
 
-	server := httptest.NewTLSServer(
-		// It is expected that GetServerStatus() will call only
-		// one REST API point
-		http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
-			// Increase number of calls
-			handlerCounter += 1
-
-			// Test request method
-			if req.Method != http.MethodGet {
-				t.Fatalf("expected request method: %s, got: %s", http.MethodGet, req.Method)
-			}
-
-			// Test that requested URL is correct
-			expectedURL := "/status"
-			reqURL := req.URL.String()
-			if reqURL != expectedURL {
-				t.Fatalf("expected request URL: %s, got: %s", expectedURL, reqURL)
-			}
-
-			// Return code 200
-			rw.WriteHeader(200)
-			// Add some headers specific for candlepin server
-			rw.Header().Add("x-candlepin-request-uuid", "168e3687-8498-46b2-af0a-272583d4d4ba")
-			// Return empty body
-			_, _ = rw.Write([]byte(serverStatusResponse))
-		}))
+	// It is expected that GetServerStatus() will call only one REST API point
+	server := newStatusServer(t, &handlerCounter)
 	defer server.Close()
 
 	// Create root directory for this test
@@ -286,4 +262,25 @@ func TestGetServerStatusInternalServerError(t *testing.T) {
 	if err == nil {
 		t.Fatalf("no error raised, when there was internal server error")
 	}
+}
+
+// newStatusServer creates a TLS test server that always answers GET /status
+// with the given response body and 200 status code. The number of received
+// requests is tracked in the returned counter.
+func newStatusServer(t *testing.T, counter *int) *httptest.Server {
+	t.Helper()
+	return httptest.NewTLSServer(
+		http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
+			*counter += 1
+			if req.Method != http.MethodGet {
+				t.Errorf("expected request method: %s, got: %s", http.MethodGet, req.Method)
+			}
+			expectedURL := "/status"
+			if reqURL := req.URL.String(); reqURL != expectedURL {
+				t.Errorf("expected request URL: %s, got: %s", expectedURL, reqURL)
+			}
+			rw.WriteHeader(200)
+			rw.Header().Add("x-candlepin-request-uuid", "168e3687-8498-46b2-af0a-272583d4d4ba")
+			_, _ = rw.Write([]byte(serverStatusResponse))
+		}))
 }

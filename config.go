@@ -85,6 +85,10 @@ type RHSMConf struct {
 	// syspurposeFilePath is the file path of the syspurpose.json file
 	syspurposeFilePath string
 
+	// statusCacheFilePath is the file path of the cache file holding the last
+	// response of the "/status" REST API endpoint (status.json)
+	statusCacheFilePath string
+
 	// osReleaseFilePath is the file path of the os-release file
 	osReleaseFilePath string
 
@@ -190,6 +194,7 @@ func LoadRHSMConf(confFilePath string) (*RHSMConf, error) {
 		dnfVarsReleaseFilePath: DefaultDnfVarsReleaseFilePath,
 		syspurposeFilePath:     DefaultSystemPurposeFilePath,
 		osReleaseFilePath:      DefaultOsReleaseFilePath,
+		statusCacheFilePath:    DefaultStatusCacheFilePath,
 	}
 
 	err := rhsmConf.load()
