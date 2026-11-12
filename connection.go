@@ -535,7 +535,7 @@ func (rhsmClient *RHSMClient) createEntitlementCertAuthConnection(
 	client, err := rhsmClient.createHTTPsClient(certFilePath, keyFilePath)
 
 	if err != nil {
-		return fmt.Errorf("unable to create entitlement cert auth connection: %v", err)
+		return err
 	}
 
 	rhsmClient.entitlementCertAuthConnection = &RHSMConnection{

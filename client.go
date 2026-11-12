@@ -117,39 +117,12 @@ func createRHSMClient(appName *string, confFilePath *string) (*RHSMClient, error
 	}
 
 	// When the entitlement key and the certificate exist, then it is possible
-	// to create a connection using entitlement cert/key for authentication to CDN
-	certKeys, err := rhsmClient.getInstalledEntitlementCertificateKeys()
-	if err != nil {
-		return nil, err
-	}
-
-	for _, certKey := range certKeys {
-		if certKey.CertPath == nil {
-			log.Debug().Msgf("cert path is nil")
-			continue
-		}
-		if certKey.KeyPath == nil {
-			log.Debug().Msgf("key path is nil")
-			continue
-		}
-		if _, err := os.Stat(*certKey.KeyPath); err == nil {
-			if _, err := os.Stat(*certKey.CertPath); err == nil {
-				cdnHost, cdnPort, cdnPath, err := parseBaseURL(rhsmConf.RHSM.BaseURL)
-				if err != nil {
-					return nil, err
-				}
-				err = rhsmClient.createEntitlementCertAuthConnection(
-					&cdnHost,
-					&cdnPort,
-					&cdnPath,
-					certKey.CertPath,
-					certKey.KeyPath,
-				)
-				if err != nil {
-					return nil, err
-				}
-			}
-		}
+	// to create a connection using entitlement cert/key for authentication to CDN.
+	// This connection is not critical for the RHSM client (it is only used for
+	// communication with CDN, e.g. to get information about release), so a failure
+	// to create it must not prevent the RHSM client from starting.
+	if _, err := rhsmClient.getEntitlementCertAuthConnection(); err != nil {
+		log.Warn().Msgf("unable to create entitlement cert auth connection: %s", err)
 	}
 
 	return rhsmClient, nil
