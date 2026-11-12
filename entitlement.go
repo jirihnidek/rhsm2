@@ -1,6 +1,7 @@
 package rhsm2
 
 import (
+	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -257,6 +258,15 @@ func (rhsmClient *RHSMClient) UpdateEntitlementCertificate(force bool, metadata 
 		}
 	}
 
+	// When no complete entitlement certificate/key pair is installed, then the certificate or key was
+	// deleted. The accessible_content endpoint used below only returns the certificate, not the key,
+	// so it cannot restore a missing key. Fall back to fetching the full certificate and key.
+	if certPath == "" || keyPath == "" {
+		log.Debug().Msg("no complete entitlement certificate and key pair installed; " +
+			"fetching a fresh entitlement certificate and key")
+		return rhsmClient.updateEntitlementCertificateFromScratch(metadata)
+	}
+
 	lastModifiedDate := lastModified.UTC().Format(time.RFC1123)
 	log.Debug().Msgf("entitlement certificate %s was the last modified: %s", certPath, lastModifiedDate)
 
@@ -398,10 +408,56 @@ func (rhsmClient *RHSMClient) UpdateEntitlementCertificate(force bool, metadata 
 		} else {
 			log.Info().Msgf("removed old entitlement certificate %s", certPath)
 		}
+
+		// The accessible_content endpoint only returns the certificate, so the key of the
+		// previous pair is reused for the reissued certificate. This is only valid when
+		// candlepin reissued the certificate keeping the same private key. If the reissued
+		// certificate uses a new key, the renamed key no longer matches it and would leave
+		// a broken cert/key pair on disk (tls: private key does not match public key),
+		// which prevents the client from starting. Detect that case and fall back to
+		// fetching the full certificate together with its key.
+		if _, err := tls.LoadX509KeyPair(newCertFilePath, newKeyFilePath); err != nil {
+			log.Warn().Msgf(
+				"reissued entitlement certificate %s does not match reused key %s (%s); "+
+					"fetching a fresh entitlement certificate and key",
+				newCertFilePath, newKeyFilePath, err)
+			// Remove the broken pair so a stale, unusable cert/key does not linger.
+			_ = os.Remove(newCertFilePath)
+			_ = os.Remove(newKeyFilePath)
+			return rhsmClient.updateEntitlementCertificateFromScratch(metadata)
+		}
 	} else {
 		// Return existing key in the case the certificate ID is still the same
 		newKeyFilePath = keyPath
 	}
 
 	return &newCertFilePath, &newKeyFilePath, nil
+}
+
+// updateEntitlementCertificateFromScratch fetches a fresh SCA entitlement certificate together with its
+// key and installs both. It is used by UpdateEntitlementCertificate when there is no usable entitlement
+// certificate/key pair to update (e.g. the certificate or key file was deleted, or a reissued certificate
+// does not match the reused key), because the accessible_content endpoint only returns the certificate
+// and cannot restore or replace a key.
+func (rhsmClient *RHSMClient) updateEntitlementCertificateFromScratch(metadata *RequestMetadata) (*string, *string, error) {
+	entCertKeys, err := rhsmClient.getSCAEntitlementCertificates(metadata)
+	if err != nil {
+		return nil, nil, fmt.Errorf("unable to get entitlement certificate and key: %s", err)
+	}
+
+	// There should be exactly one SCA entitlement certificate, but iterate to be safe and return the
+	// path of a certificate and key that were actually installed on the filesystem.
+	for _, entCertKey := range entCertKeys {
+		certFilePath := rhsmClient.entCertPath(entCertKey.Serial.Serial)
+		keyFilePath := rhsmClient.entKeyPath(entCertKey.Serial.Serial)
+		if _, err := os.Stat(*certFilePath); err != nil {
+			continue
+		}
+		if _, err := os.Stat(*keyFilePath); err != nil {
+			continue
+		}
+		return certFilePath, keyFilePath, nil
+	}
+
+	return nil, nil, fmt.Errorf("no entitlement certificate and key were installed")
 }

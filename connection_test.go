@@ -637,6 +637,73 @@ func TestGetEntitlementCertAuthConnectionWithProxy(t *testing.T) {
 	}
 }
 
+// TestGetEntitlementCertAuthConnectionWithBrokenPair test the case when more than one
+// entitlement certificate is installed and one of the pairs is broken (its certificate
+// and key do not belong together). getEntitlementCertAuthConnection() must skip the broken
+// pair and establish a working connection using the valid one, instead of failing with
+// "tls: private key does not match public key". This used to prevent the whole client from
+// starting whenever the random map iteration order happened to pick the broken pair first.
+func TestGetEntitlementCertAuthConnectionWithBrokenPair(t *testing.T) {
+	t.Parallel()
+
+	// Create root directory for this test
+	tempDirFilePath := t.TempDir()
+
+	// Setup filesystem with a valid entitlement certificate/key pair installed
+	testingFiles, err := setupTestingFileSystem(
+		tempDirFilePath,
+		true,
+		true,
+		true,
+		true,
+		true)
+	if err != nil {
+		t.Fatalf("unable to setup testing environment: %s", err)
+	}
+
+	server := httptest.NewTLSServer(
+		http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
+			// Verify that client certificate was provided
+			if req.TLS == nil || len(req.TLS.PeerCertificates) == 0 {
+				t.Fatalf("expected client certificate, but none was provided")
+			}
+
+			// Return code 200
+			rw.WriteHeader(200)
+			_, _ = rw.Write([]byte("OK"))
+		}))
+	defer server.Close()
+
+	rhsmClient, err := setupTestingRHSMClient(testingFiles, server, nil)
+	if err != nil {
+		t.Fatalf("unable to setup testing rhsm client: %s", err)
+	}
+
+	// Install a second, broken pair, whose certificate and key do not belong together, so it
+	// cannot be loaded as a TLS key pair. See
+	// testdata/use_cases/broken_pair_of_ent_cert_and_key for details.
+	if err := testingFiles.setupBrokenEntitlementCertKey(nil); err != nil {
+		t.Fatalf("unable to install broken entitlement cert/key pair: %s", err)
+	}
+
+	// Get entitlement cert auth connection. It should skip the broken pair and load the valid
+	// one. If the broken pair were used, tls.LoadX509KeyPair would fail and an error would be
+	// returned here instead of a connection.
+	connection, err := rhsmClient.getEntitlementCertAuthConnection()
+	if err != nil {
+		t.Fatalf("getEntitlementCertAuthConnection should skip the broken pair and succeed, got: %s", err)
+	}
+
+	if connection == nil {
+		t.Fatalf("connection should not be nil")
+	}
+
+	// Verify connection has transport configured
+	if connection.Client == nil {
+		t.Fatalf("connection http client should not be nil")
+	}
+}
+
 // TestGetNoAuthConnection test the case when we try to get the no-auth connection
 func TestGetNoAuthConnection(t *testing.T) {
 	t.Parallel()
