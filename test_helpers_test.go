@@ -17,6 +17,11 @@ import (
 
 const testEntCertSerialNumber = "4709416649487329566"
 
+// testBrokenEntCertSerialNumber is the serial number of the broken entitlement cert/key
+// pair stored in testdata/use_cases/broken_pair_of_ent_cert_and_key. The certificate and
+// key in that pair do not belong together, so tls.LoadX509KeyPair rejects them.
+const testBrokenEntCertSerialNumber = "1234567890123456789"
+
 const response403 = `{
   "displayMessage": "Consumer could not be deleted due to insufficient permissions.",
   "requestUuid": "c4347004-8792-41fe-a4d8-fccaa0d3898a"
@@ -150,6 +155,30 @@ func (testingFileSystem *TestingFileSystem) setupEntitlementCertKey(perm *os.Fil
 	err = copyFile(&srcEntitlementCertFilePath, &dstEntitlementCertFilePath, perm)
 	if err != nil {
 		return fmt.Errorf("unable to create testing entitlement cert file: %s", err)
+	}
+	return nil
+}
+
+// setupBrokenEntitlementCertKey installs the broken entitlement cert/key pair from
+// testdata/use_cases/broken_pair_of_ent_cert_and_key into the entitlement directory. The
+// certificate and key in that pair do not belong together, so loading them as a TLS key
+// pair fails. It is used to test that a broken pair is skipped when more than one
+// entitlement certificate is installed.
+func (testingFileSystem *TestingFileSystem) setupBrokenEntitlementCertKey(perm *os.FileMode) error {
+	srcDir := "./testdata/use_cases/broken_pair_of_ent_cert_and_key/"
+	// Copy the broken entitlement key to temporary directory
+	srcEntitlementKeyFilePath := srcDir + testBrokenEntCertSerialNumber + "-key.pem"
+	dstEntitlementKeyFilePath := filepath.Join(testingFileSystem.EntitlementDirPath, testBrokenEntCertSerialNumber+"-key.pem")
+	err := copyFile(&srcEntitlementKeyFilePath, &dstEntitlementKeyFilePath, perm)
+	if err != nil {
+		return fmt.Errorf("unable to create broken testing entitlement key file: %s", err)
+	}
+	// Copy the broken entitlement cert to temporary directory
+	srcEntitlementCertFilePath := srcDir + testBrokenEntCertSerialNumber + ".pem"
+	dstEntitlementCertFilePath := filepath.Join(testingFileSystem.EntitlementDirPath, testBrokenEntCertSerialNumber+".pem")
+	err = copyFile(&srcEntitlementCertFilePath, &dstEntitlementCertFilePath, perm)
+	if err != nil {
+		return fmt.Errorf("unable to create broken testing entitlement cert file: %s", err)
 	}
 	return nil
 }

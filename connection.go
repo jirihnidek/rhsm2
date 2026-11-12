@@ -487,15 +487,25 @@ func (rhsmClient *RHSMClient) getEntitlementCertAuthConnection() (*RHSMConnectio
 			log.Debug().Msgf("cert path %s does not exist: %s", *certKey.CertPath, err)
 			continue
 		}
-		if certKey.CertPath != nil && certKey.KeyPath != nil {
-			certPath = certKey.CertPath
-			keyPath = certKey.KeyPath
-			break
+		// Make sure the certificate and key actually belong together. When more than
+		// one entitlement certificate is installed, a mismatched pair (e.g. left behind
+		// by a failed reissue) would otherwise be picked in random map iteration order
+		// and make tls.LoadX509KeyPair fail with "private key does not match public key",
+		// preventing the whole client from starting. Skip such broken pairs and keep
+		// looking for a usable one.
+		if _, err := tls.LoadX509KeyPair(*certKey.CertPath, *certKey.KeyPath); err != nil {
+			log.Warn().Msgf(
+				"skipping entitlement certificate %s: unusable cert/key pair: %s",
+				*certKey.CertPath, err)
+			continue
 		}
+		certPath = certKey.CertPath
+		keyPath = certKey.KeyPath
+		break
 	}
 
 	if keyPath == nil || certPath == nil {
-		return nil, fmt.Errorf("no entitlement certificate and key found")
+		return nil, fmt.Errorf("no usable entitlement certificate and key found")
 	}
 
 	err = rhsmClient.createEntitlementCertAuthConnection(
@@ -525,7 +535,7 @@ func (rhsmClient *RHSMClient) createEntitlementCertAuthConnection(
 	client, err := rhsmClient.createHTTPsClient(certFilePath, keyFilePath)
 
 	if err != nil {
-		return fmt.Errorf("unable to create entitlement cert auth connection: %v", err)
+		return err
 	}
 
 	rhsmClient.entitlementCertAuthConnection = &RHSMConnection{

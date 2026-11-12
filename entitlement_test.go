@@ -1,6 +1,7 @@
 package rhsm2
 
 import (
+	"crypto/tls"
 	"errors"
 	"net/http"
 	"net/http/httptest"
@@ -450,6 +451,19 @@ func TestGetEntitlementCertificateInternalServerError(t *testing.T) {
 const updatedCertificate = `
 {
   "contentListing" : {
+    "8713004171067776439" : [ "-----BEGIN CERTIFICATE-----\nMIIFWjCCA0KgAwIBAgIUIp0yaNyqn9PErltao2B+/TZ3UPYwDQYJKoZIhvcNAQEL\nBQAwTTETMBEGA1UECgwKZG9uYWxkZHVjazE2MDQGA1UEAwwtcmVpc3N1ZWQtMTJi\nYjIyMWYtNzVhOC00NTQ1LThiNGEtMTJjNzA0OTc1NTkxMB4XDTI2MTExMjA5MTEw\nMFoXDTM2MTEwOTA5MTEwMFowTTETMBEGA1UECgwKZG9uYWxkZHVjazE2MDQGA1UE\nAwwtcmVpc3N1ZWQtMTJiYjIyMWYtNzVhOC00NTQ1LThiNGEtMTJjNzA0OTc1NTkx\nMIICIjANBgkqhkiG9w0BAQEFAAOCAg8AMIICCgKCAgEAuo/StAyMuwQnig+Y6ee7\nm84aTykD/m/ULBTIT9Ifc/+qoQD4C6xOlRykH4VT/WKEHk0mW/4BfvIxOJrvGLAm\npyvN7Vnm5IQEoUqJeU3KRt7fZpdDsSTEScediLYoInCo3JjQrKvfusep3eTIQB5B\nQzbZQxQgRn/1JUxmF0LS6zWsdiD8rgSM0wlHOPKB6cPAu6KKdIFgPi/rOHSCR6OC\nzbipuK+nUB2Kui2pZ8Q5vONtuSF58u5XWSYYtPAuWMcWC+QZ6/KVkJFYYGOoJ+jO\nyvXmhEL2OeWMTo/is4a+P+Qyy6JzLBaBzQ/dLy2m48araCS5ZhgNQDN8NqnsyJYP\n1ejasMmwskQ0iGtEPCebc2RRuFNPg2+V2tZ1TEJ43VFqTcbwTCR7Eqok9aRofXsZ\nL6e/WiiB9/WcDL1gqFE7BtYMy+j8WBkL8KabYAYcQ7lduLxZ/3erAySy2g4B0jyh\noRiBEpB3UxyxLmDcfx0qWZ9flFmjlYg0pTmfbDR2QbsQ0BygrSNGTaq5E5Ef83cQ\nx2Y3yK0vz4fFUsiaDmVBkQY/0mOodPMD8gcOiDlokI7N5P4Xptsy3LRDaH7Dw2rn\n2xAGLXg1hisZltWuj/xLu4JHmHAZ6zM+AXkiUSu7VNTiOxeXhATyl7FTqwXHd/cC\nioy/jkB2vcC/Y59C1AM7VlUCAwEAAaMyMDAwHQYDVR0OBBYEFELN43LhWYwauSOz\nTKAMPigVJZUPMA8GA1UdEwEB/wQFMAMBAf8wDQYJKoZIhvcNAQELBQADggIBACcF\nsVIlwB37R8JyIM1H9/HnUk4GQGcm69Gm3dTBjouwjYS6EuAoBMVAiOc7iWe9Y9AH\nWmjS7hXcJpDFLOzel54sq9PSeYOGuXZP+qa7zKELEbnBIQrhUIEHp3PBefQlE5DX\nWNpDnRliL5zD6d74IDrMR9+MLPJ1spIS0DuYK37cWcqQTx27l6tAcYa3C+Y8s6Bp\nRISs1irgsi9Jhtz/50w/rMaO3dlZrYbhJ3LI4A797i71zWe+TixoQectc//lLBQg\nuRvhQq/cc/nsGpIxd+kDD5lT8Tpr7ozK2b2VELa6luXMmAtjoLSJFjmHPcoOCHK1\ngvQ6jvJ5zyRN+fW+c4B/8lIaQvTlvQ3NoUsiFF3dKLfytzyZXT5TyJ61JNDiGYiF\nZWF9X5wZkkOcOMxgqaOeTUFtDmOVY+QhwqGpY26x4IG9dDEqkYS4W43okANlBxG+\nQ5GnYUeIqCCTZzUNZZvVj6qRaf1QXaTjJGCSbFuT3vVsgzZWk5zs7gTMDe1gv0yL\nabScarBrhIGgPRnoKA+NQk/MUrRTzoZz55Cz36GXHyl6XsZs1hpKo59lqY7fJTdU\nerrzs7J7Yl+l3wpUNuQCHZR0XKgcEgIYO1l5wTXzakb2jmv1FtdpH1BaDlw1WudZ\nJyoxetQ5Xb1OBCJ9LtyGqnUQR3/e7veDNDzKC93R\n-----END CERTIFICATE-----\n-----BEGIN ENTITLEMENT DATA-----\n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\nvBFa9XQav+bbt/8BVGua5g==\n-----END ENTITLEMENT DATA-----\n-----BEGIN SIGNATURE-----\ncnKNckwfHGVTXOdHv+ake7qG391V+BZVfULP/1QXyft4aFRDa5cF4v92HBmS12N9\nxjOjY5zovj4d8ySYnVU0V/2sCy/LWVwyd2+IAIdTs/Qrx0ctcB4x8Mu/OUwwe5Ko\nRB8zbVtoj8jOqzMj3KbZmf5Zej/LUticn+6radHM6klQmDUFd5G3XNpM0TZZhytW\nFZOBAHWKNan0WyIcNuoAYYgceVBZ6eHS4qQmq05wLTXVx8fYZucFGMtqs5Z7lwk9\ndhfoC7Rg7VQpPhjsSvlw8a0yyY8sbvyUgXipqzflXAumy5M1sCfLBbzLF7NNbFac\nWMMpuwWR6EOCb7FNSasHGDQzGWAe8tswaHxW1Ummoju5xlsNyesaXL0xXeDA7Q2c\n8q5VYxCA1SeDZV0GD4nXK2JcEsan1n79poS6DTePFmQtMNC4JnDOc3bvZN3wKVP2\nG47313c8jlMmRfoXcWTEV+Nv6/Aetpj1l3R6Nzz6fPTGJpf19zIRVqXRBaftrtIS\nWzeSSzKkLOMhxKsqp38BBrbdFZkRE5kq4NVQxtEDhI2vvGhp4wDbPOU+UYQzj971\nx9cJAkRwTxBWHrUlhWn3DEXykrTGkkeFiWnZ/RwNC5fHRvUBrE5wf59loNEoX5wv\niGJKxkBIvO54h0qytzXiUTCpbrcm7EBPoCMbIa7614Q=\n-----END SIGNATURE-----\n" ]
+  },
+  "lastUpdate" : "2026-08-14T14:25:33+0000"
+}
+`
+
+// reissuedCertificateMismatchedKey is an accessible_content response whose reissued
+// certificate (new serial) uses a different private key than the one installed, so the
+// renamed/reused key no longer matches it. It is used to exercise the fallback to the
+// certificates endpoint in UpdateEntitlementCertificate.
+const reissuedCertificateMismatchedKey = `
+{
+  "contentListing" : {
     "8713004171067776439" : [ "-----BEGIN CERTIFICATE-----\nMIIF5DCCA8ygAwIBAgIIeOrPIU793bcwDQYJKoZIhvcNAQELBQAwRDEcMBoGA1UE\nAwwTQ2FuZGxlcGluIFNlcnZlciBDQTESMBAGA1UECwwJQ2FuZGxlcGluMRAwDgYD\nVQQKDAdSZWQgSGF0MB4XDTI2MDgxNDEzMjUzM1oXDTI3MDgxNDEzMjUzM1owRDET\nMBEGA1UECgwKZG9uYWxkZHVjazEtMCsGA1UEAwwkMTJiYjIyMWYtNzVhOC00NTQ1\nLThiNGEtMTJjNzA0OTc1NTkxMIICIjANBgkqhkiG9w0BAQEFAAOCAg8AMIICCgKC\nAgEAnPvKLkH3KhBy0YgF9ZDsvERXveoUy5Hsr2UnyuEaBk2BJuAeDx3eRUwq/QhL\nBqwINGIR1JfwyiOetGVlTr43koUr0Iv4NFC+GiNsaTrA8ASVtMQcehzxvcydzjMi\nooMEMN/tXtMQSGqc0MPHS4qZjYNTFg00cHm+8HXT+S4sGzGigWAe5yzQXEBR3hZg\nX7aOrB0rtS0ZBqNTfXMWX8nYci+KLXVtsZ1jCBpEkIC9iV4HLYweke6UoE6xXGe1\nSWOvi5EdT6SZiScit5qW1isc1w/vuslgP3qm+GaVR4yE9Q+k90MLyjWwvp1p9iOc\n3x2idJ1RWGIdO6J7Y/YUbq8PNN/tjV/VTEPkqIJMdBAFmi5oeeco7rwHv3/AOPKn\nEg5Btrb3BtufvH17NKnprNkzhxjj/xhjSeSWc2QdlEIZd+xicPzzz5E7KiK2yub4\nJjAUMVm0kn6h6wJmStW2Mt2nM6PW2nGGjCNm6/894piOxsMEK9tblbvcE/RYISRf\nSoCtjAjc06q7VUiRD3nEJLcJE9XutIJjd7HRNadIes2OTkihnz74r6Kir8mIt6KT\nyCq7FqVyUSNtvaOHFa/GcUkMrJBW6A8BAmzbM+uyukWVQ6kFLSWeh7Q2DLnyu54K\n2VfuI+/PONrv/AZbynIdVts+Mn3zBUMnMhocRrBPkYOow7kCAwEAAaOB2TCB1jAR\nBglghkgBhvhCAQEEBAMCBaAwDgYDVR0PAQH/BAQDAgeAMBMGA1UdJQQMMAoGCCsG\nAQUFBwMCMB8GA1UdIwQYMBaAFPlj+v2vZmNSwocyVSGn10iH6HniMB0GA1UdDgQW\nBBRy6/IcpkaJ9DeVf9x9IZoqJXku/jAJBgNVHRMEAjAAMBcGCSsGAQQBkggJCAQK\nDAhPcmdMZXZlbDAkBgkrBgEEAZIICQcEFwQVeNpLyc9LzElJKU3OZgAAGqYEGgM4\nMBIGCSsGAQQBkggJBgQFDAMzLjQwDQYJKoZIhvcNAQELBQADggIBADGU7fZMCila\nj70Lz6XxfNeNEv47vmKzt6e8s730WwbMSJuEcDn+t3kmXhl4bF5/FyDs8VFtXyYD\nDJenvi21g43506rQEpy8jcMBwkoTpK5sokZBcwbzlI0PLmOChdtrI0OZzquPKgtz\nWIiyHe5i4Nt0U1J5ruFg72sD+axDAwLqJU9fKlO8jabq8LWfEP5LzfvmsIw3/aED\nB7msdlWD9tSYdI/1RY+1RS+MtUCBwlhHm7rv9GWG77b6s0oOchdcvf4tLBG0vwXW\nq8BhpaOUSGaQ0xLTvFCOpQVOw8b3Hpm6xkmOgrynOuqH1iX/w7rEpVpoMGTHrYFc\nTU4sFk3CAwO+9Ukc/6ZQlXTTPE8PVYEz8jtczWLJ0T46fpf80wLDLBOs04QnDU4p\nu0Ym8AEBxF3uo/YhQ+sQ/suZ9krGQnp6BMsUs0695x+HWbQlaCY1pm1dfzSPAWwi\nsMqiS2DClzxhSqifuuMT3B4UeUSEYZCIVI74mjD7X8xsOcVA1WRMLsiATCb1NoGX\nJ/RvH4AFaVmtYXHaOLK64+51YgVqfI3blpOUnONYu26SgBSI4jv6iv+xnNV6rM5Y\nOrOxrR1aK8lRaXId94nlwRvD0cmt9xd8umRo5GdcnM5EdjnYUdWQeJqfy3CBdsn3\nV5tHMk9HNUM3bTvUu8hjLAo3axYLVMJm\n-----END CERTIFICATE-----\n",
 "-----BEGIN ENTITLEMENT DATA-----\n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\nvBFa9XQav+bbt/8BVGua5g==\n-----END ENTITLEMENT DATA-----\n-----BEGIN SIGNATURE-----\ncnKNckwfHGVTXOdHv+ake7qG391V+BZVfULP/1QXyft4aFRDa5cF4v92HBmS12N9\nxjOjY5zovj4d8ySYnVU0V/2sCy/LWVwyd2+IAIdTs/Qrx0ctcB4x8Mu/OUwwe5Ko\nRB8zbVtoj8jOqzMj3KbZmf5Zej/LUticn+6radHM6klQmDUFd5G3XNpM0TZZhytW\nFZOBAHWKNan0WyIcNuoAYYgceVBZ6eHS4qQmq05wLTXVx8fYZucFGMtqs5Z7lwk9\ndhfoC7Rg7VQpPhjsSvlw8a0yyY8sbvyUgXipqzflXAumy5M1sCfLBbzLF7NNbFac\nWMMpuwWR6EOCb7FNSasHGDQzGWAe8tswaHxW1Ummoju5xlsNyesaXL0xXeDA7Q2c\n8q5VYxCA1SeDZV0GD4nXK2JcEsan1n79poS6DTePFmQtMNC4JnDOc3bvZN3wKVP2\nG47313c8jlMmRfoXcWTEV+Nv6/Aetpj1l3R6Nzz6fPTGJpf19zIRVqXRBaftrtIS\nWzeSSzKkLOMhxKsqp38BBrbdFZkRE5kq4NVQxtEDhI2vvGhp4wDbPOU+UYQzj971\nx9cJAkRwTxBWHrUlhWn3DEXykrTGkkeFiWnZ/RwNC5fHRvUBrE5wf59loNEoX5wv\niGJKxkBIvO54h0qytzXiUTCpbrcm7EBPoCMbIa7614Q=\n-----END SIGNATURE-----\n" ]
   },
@@ -800,5 +814,179 @@ func TestUpdateEntitlementCertificate_Force(t *testing.T) {
 	if handlerCounter.Load() != 1 {
 		t.Fatalf("handler for getting SCA entitlement cert REST API pointed not called once, but called: %d",
 			handlerCounter.Load())
+	}
+}
+
+// TestGetEntitlementCertAuthConnectionSkipsBrokenPair tests that when more than one
+// entitlement certificate is installed and one of the pairs is broken (the certificate
+// and key do not belong together), getEntitlementCertAuthConnection() skips the broken
+// pair and uses the valid one instead of failing with
+// "tls: private key does not match public key". This used to prevent the whole client
+// from starting whenever map iteration happened to pick the broken pair first.
+func TestGetEntitlementCertAuthConnectionSkipsBrokenPair(t *testing.T) {
+	t.Parallel()
+
+	tempDirFilePath := t.TempDir()
+
+	// entCertsInstalled=true installs a valid cert/key pair at serial testEntCertSerialNumber
+	testingFiles, err := setupTestingFileSystem(tempDirFilePath, false, true, true, false, true)
+	if err != nil {
+		t.Fatalf("unable to setup testing environment: %s", err)
+	}
+
+	rhsmClient, err := setupTestingRHSMClient(testingFiles, nil, nil)
+	if err != nil {
+		t.Fatalf("unable to setup testing rhsm client: %s", err)
+	}
+
+	// Install a second, broken pair, whose certificate and key do not belong together, so it
+	// cannot be loaded as a TLS key pair. See
+	// testdata/use_cases/broken_pair_of_ent_cert_and_key for details.
+	if err := testingFiles.setupBrokenEntitlementCertKey(nil); err != nil {
+		t.Fatalf("unable to install broken entitlement cert/key pair: %s", err)
+	}
+
+	connection, err := rhsmClient.getEntitlementCertAuthConnection()
+	if err != nil {
+		t.Fatalf("getEntitlementCertAuthConnection should skip the broken pair and succeed, got: %s", err)
+	}
+	if connection == nil || connection.Client == nil {
+		t.Fatalf("expected a usable entitlement cert auth connection")
+	}
+}
+
+// TestGetEntitlementCertAuthConnectionSkipsMultipleBrokenPairs tests that when several
+// broken entitlement cert/key pairs are installed alongside a single valid one,
+// getEntitlementCertAuthConnection() skips all of the broken pairs (regardless of the
+// random map iteration order) and uses the valid pair, instead of failing with
+// "tls: private key does not match public key".
+func TestGetEntitlementCertAuthConnectionSkipsMultipleBrokenPairs(t *testing.T) {
+	t.Parallel()
+
+	tempDirFilePath := t.TempDir()
+
+	// entCertsInstalled=true installs a valid cert/key pair at serial testEntCertSerialNumber
+	testingFiles, err := setupTestingFileSystem(tempDirFilePath, false, true, true, false, true)
+	if err != nil {
+		t.Fatalf("unable to setup testing environment: %s", err)
+	}
+
+	rhsmClient, err := setupTestingRHSMClient(testingFiles, nil, nil)
+	if err != nil {
+		t.Fatalf("unable to setup testing rhsm client: %s", err)
+	}
+
+	// Install the broken pair from the use case directory. See
+	// testdata/use_cases/broken_pair_of_ent_cert_and_key for details.
+	if err := testingFiles.setupBrokenEntitlementCertKey(nil); err != nil {
+		t.Fatalf("unable to install broken entitlement cert/key pair: %s", err)
+	}
+
+	// Install a second broken pair under a different serial, reusing the mismatched
+	// certificate and key from the use case directory so this pair cannot be loaded either.
+	brokenCertContent, err := os.ReadFile(
+		filepath.Join(testingFiles.EntitlementDirPath, testBrokenEntCertSerialNumber+".pem"))
+	if err != nil {
+		t.Fatalf("unable to read broken entitlement certificate: %s", err)
+	}
+	brokenKeyContent, err := os.ReadFile(
+		filepath.Join(testingFiles.EntitlementDirPath, testBrokenEntCertSerialNumber+"-key.pem"))
+	if err != nil {
+		t.Fatalf("unable to read broken entitlement key: %s", err)
+	}
+	secondBrokenCertPath := filepath.Join(testingFiles.EntitlementDirPath, "2222222222222222222.pem")
+	secondBrokenKeyPath := filepath.Join(testingFiles.EntitlementDirPath, "2222222222222222222-key.pem")
+	if err := os.WriteFile(secondBrokenCertPath, brokenCertContent, 0644); err != nil {
+		t.Fatalf("unable to write second broken entitlement certificate: %s", err)
+	}
+	if err := os.WriteFile(secondBrokenKeyPath, brokenKeyContent, 0600); err != nil {
+		t.Fatalf("unable to write second broken entitlement key: %s", err)
+	}
+
+	connection, err := rhsmClient.getEntitlementCertAuthConnection()
+	if err != nil {
+		t.Fatalf("getEntitlementCertAuthConnection should skip the broken pairs and succeed, got: %s", err)
+	}
+	if connection == nil || connection.Client == nil {
+		t.Fatalf("expected a usable entitlement cert auth connection")
+	}
+}
+
+// TestUpdateEntitlementCertificate_ReissuedKeyMismatch tests that when candlepin
+// reissues an entitlement certificate with a new serial and a new private key, the
+// accessible_content endpoint (which only returns the certificate) cannot produce a
+// matching pair by reusing the old key. UpdateEntitlementCertificate() must detect the
+// mismatch and fall back to the certificates endpoint, which returns a fresh certificate
+// together with its key, instead of leaving a broken cert/key pair on disk.
+func TestUpdateEntitlementCertificate_ReissuedKeyMismatch(t *testing.T) {
+	t.Parallel()
+	var expectedClientUUID = "5e9745d5-624d-4af1-916e-2c17df4eb4e8"
+	var accessibleContentCalls atomic.Int32
+	var certificatesCalls atomic.Int32
+
+	server := httptest.NewTLSServer(
+		http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
+			rw.Header().Add("x-candlepin-request-uuid", "168e3687-8498-46b2-af0a-272583d4d4ba")
+			switch req.URL.String() {
+			case "/consumers/" + expectedClientUUID + "/accessible_content":
+				accessibleContentCalls.Add(1)
+				rw.WriteHeader(200)
+				_, _ = rw.Write([]byte(reissuedCertificateMismatchedKey))
+			case "/consumers/" + expectedClientUUID + "/certificates":
+				certificatesCalls.Add(1)
+				rw.WriteHeader(200)
+				_, _ = rw.Write([]byte(entCertKeyList))
+			default:
+				t.Fatalf("unexpected request URL: %s", req.URL.String())
+			}
+		}))
+	defer server.Close()
+
+	tempDirFilePath := t.TempDir()
+
+	// entCertsInstalled=true installs a cert/key pair at serial testEntCertSerialNumber
+	testingFiles, err := setupTestingFileSystem(tempDirFilePath, false, true, true, false, true)
+	if err != nil {
+		t.Fatalf("unable to setup testing environment: %s", err)
+	}
+
+	rhsmClient, err := setupTestingRHSMClient(testingFiles, server, nil)
+	if err != nil {
+		t.Fatalf("unable to setup testing rhsm client: %s", err)
+	}
+
+	certFilePath, keyFilePath, err := rhsmClient.UpdateEntitlementCertificate(false, nil)
+	if err != nil {
+		t.Fatalf("failed to update entitlement cert and key on reissue with new key: %s", err)
+	}
+
+	if accessibleContentCalls.Load() != 1 {
+		t.Fatalf("accessible_content should be called once, but was called: %d", accessibleContentCalls.Load())
+	}
+	if certificatesCalls.Load() != 1 {
+		t.Fatalf("certificates fallback should be called once, but was called: %d", certificatesCalls.Load())
+	}
+
+	// The fresh certificate and key from the certificates endpoint should be installed and match.
+	expectedEntCertFilePath := filepath.Join(testingFiles.EntitlementDirPath, "2150990815908364188.pem")
+	expectedEntKeyFilePath := filepath.Join(testingFiles.EntitlementDirPath, "2150990815908364188-key.pem")
+	if *certFilePath != expectedEntCertFilePath {
+		t.Fatalf("expected entitlement cert: %s, got: %s", expectedEntCertFilePath, *certFilePath)
+	}
+	if *keyFilePath != expectedEntKeyFilePath {
+		t.Fatalf("expected entitlement key: %s, got: %s", expectedEntKeyFilePath, *keyFilePath)
+	}
+	if _, err := tls.LoadX509KeyPair(*certFilePath, *keyFilePath); err != nil {
+		t.Fatalf("installed entitlement cert/key pair should be usable: %s", err)
+	}
+
+	// The broken reissued pair must not be left behind on disk.
+	brokenCertPath := filepath.Join(testingFiles.EntitlementDirPath, "8713004171067776439.pem")
+	brokenKeyPath := filepath.Join(testingFiles.EntitlementDirPath, "8713004171067776439-key.pem")
+	if _, err := os.Stat(brokenCertPath); err == nil {
+		t.Fatalf("broken reissued entitlement certificate %s should have been removed", brokenCertPath)
+	}
+	if _, err := os.Stat(brokenKeyPath); err == nil {
+		t.Fatalf("broken reissued entitlement key %s should have been removed", brokenKeyPath)
 	}
 }
