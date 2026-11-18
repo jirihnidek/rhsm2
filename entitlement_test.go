@@ -749,6 +749,146 @@ func TestUpdateEntitlementCertificate_SameSerialReissue(t *testing.T) {
 	}
 }
 
+// TestUpdateEntitlementCertificate_DeletedKey tests that when the entitlement key is
+// deleted, UpdateEntitlementCertificate falls back to fetching a fresh certificate and
+// key from the certificates endpoint and installs both again.
+func TestUpdateEntitlementCertificate_DeletedKey(t *testing.T) {
+	t.Parallel()
+	var expectedClientUUID = "5e9745d5-624d-4af1-916e-2c17df4eb4e8"
+	var handlerCounter atomic.Int32
+
+	server := httptest.NewTLSServer(
+		http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
+			handlerCounter.Add(1)
+
+			// When no complete cert/key pair is installed, the full certificates
+			// endpoint must be used, because accessible_content does not return the key.
+			expectedURL := "/consumers/" + expectedClientUUID + "/certificates"
+			reqURL := req.URL.String()
+			if reqURL != expectedURL {
+				t.Fatalf("expected request URL: %s, got: %s", expectedURL, reqURL)
+			}
+
+			rw.WriteHeader(200)
+			rw.Header().Add("x-candlepin-request-uuid", "168e3687-8498-46b2-af0a-272583d4d4ba")
+			_, _ = rw.Write([]byte(entCertKeyList))
+		}))
+	defer server.Close()
+
+	tempDirFilePath := t.TempDir()
+
+	// entCertsInstalled=true installs a cert/key pair at serial testEntCertSerialNumber
+	testingFiles, err := setupTestingFileSystem(tempDirFilePath, false, true, true, false, true)
+	if err != nil {
+		t.Fatalf("unable to setup testing environment: %s", err)
+	}
+
+	rhsmClient, err := setupTestingRHSMClient(testingFiles, server, nil)
+	if err != nil {
+		t.Fatalf("unable to setup testing rhsm client: %s", err)
+	}
+
+	// Simulate something/somebody deleting the installed entitlement key
+	installedKeyFilePath := filepath.Join(testingFiles.EntitlementDirPath, testEntCertSerialNumber+"-key.pem")
+	if err := os.Remove(installedKeyFilePath); err != nil {
+		t.Fatalf("unable to remove entitlement key: %s", err)
+	}
+
+	certFilePath, keyFilePath, err := rhsmClient.UpdateEntitlementCertificate(false, nil)
+	if err != nil {
+		t.Fatalf("failed to update entitlement cert and key after key was deleted: %s", err)
+	}
+
+	if handlerCounter.Load() != 1 {
+		t.Fatalf("certificates REST API point not called once, but called: %d", handlerCounter.Load())
+	}
+
+	// The fresh certificate and key returned by the certificates endpoint should be installed
+	expectedEntCertFilePath := filepath.Join(testingFiles.EntitlementDirPath, "2150990815908364188.pem")
+	if _, err := os.Stat(expectedEntCertFilePath); err != nil {
+		t.Fatalf("expected entitlement cert: %s is not installed: %s", expectedEntCertFilePath, err)
+	}
+	if *certFilePath != expectedEntCertFilePath {
+		t.Fatalf("expected entitlement cert: %s, got: %s", expectedEntCertFilePath, *certFilePath)
+	}
+
+	expectedEntKeyFilePath := filepath.Join(testingFiles.EntitlementDirPath, "2150990815908364188-key.pem")
+	if _, err := os.Stat(expectedEntKeyFilePath); err != nil {
+		t.Fatalf("expected entitlement key: %s is not installed: %s", expectedEntKeyFilePath, err)
+	}
+	if *keyFilePath != expectedEntKeyFilePath {
+		t.Fatalf("expected entitlement key: %s, got: %s", expectedEntKeyFilePath, *keyFilePath)
+	}
+}
+
+// TestUpdateEntitlementCertificate_DeletedCert tests that when the entitlement certificate
+// is deleted, UpdateEntitlementCertificate falls back to fetching a fresh certificate and
+// key from the certificates endpoint and installs both again.
+func TestUpdateEntitlementCertificate_DeletedCert(t *testing.T) {
+	t.Parallel()
+	var expectedClientUUID = "5e9745d5-624d-4af1-916e-2c17df4eb4e8"
+	var handlerCounter atomic.Int32
+
+	server := httptest.NewTLSServer(
+		http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
+			handlerCounter.Add(1)
+
+			expectedURL := "/consumers/" + expectedClientUUID + "/certificates"
+			reqURL := req.URL.String()
+			if reqURL != expectedURL {
+				t.Fatalf("expected request URL: %s, got: %s", expectedURL, reqURL)
+			}
+
+			rw.WriteHeader(200)
+			rw.Header().Add("x-candlepin-request-uuid", "168e3687-8498-46b2-af0a-272583d4d4ba")
+			_, _ = rw.Write([]byte(entCertKeyList))
+		}))
+	defer server.Close()
+
+	tempDirFilePath := t.TempDir()
+
+	testingFiles, err := setupTestingFileSystem(tempDirFilePath, false, true, true, false, true)
+	if err != nil {
+		t.Fatalf("unable to setup testing environment: %s", err)
+	}
+
+	rhsmClient, err := setupTestingRHSMClient(testingFiles, server, nil)
+	if err != nil {
+		t.Fatalf("unable to setup testing rhsm client: %s", err)
+	}
+
+	// Simulate something/somebody deleting the installed entitlement certificate
+	installedCertFilePath := filepath.Join(testingFiles.EntitlementDirPath, testEntCertSerialNumber+".pem")
+	if err := os.Remove(installedCertFilePath); err != nil {
+		t.Fatalf("unable to remove entitlement cert: %s", err)
+	}
+
+	certFilePath, keyFilePath, err := rhsmClient.UpdateEntitlementCertificate(false, nil)
+	if err != nil {
+		t.Fatalf("failed to update entitlement cert and key after cert was deleted: %s", err)
+	}
+
+	if handlerCounter.Load() != 1 {
+		t.Fatalf("certificates REST API point not called once, but called: %d", handlerCounter.Load())
+	}
+
+	expectedEntCertFilePath := filepath.Join(testingFiles.EntitlementDirPath, "2150990815908364188.pem")
+	if _, err := os.Stat(expectedEntCertFilePath); err != nil {
+		t.Fatalf("expected entitlement cert: %s is not installed: %s", expectedEntCertFilePath, err)
+	}
+	if *certFilePath != expectedEntCertFilePath {
+		t.Fatalf("expected entitlement cert: %s, got: %s", expectedEntCertFilePath, *certFilePath)
+	}
+
+	expectedEntKeyFilePath := filepath.Join(testingFiles.EntitlementDirPath, "2150990815908364188-key.pem")
+	if _, err := os.Stat(expectedEntKeyFilePath); err != nil {
+		t.Fatalf("expected entitlement key: %s is not installed: %s", expectedEntKeyFilePath, err)
+	}
+	if *keyFilePath != expectedEntKeyFilePath {
+		t.Fatalf("expected entitlement key: %s, got: %s", expectedEntKeyFilePath, *keyFilePath)
+	}
+}
+
 // TestUpdateEntitlementCertificate_Force tests that when force is true, no
 // If-Modified-Since header is sent, even when a certificate with a known
 // mtime is already installed.

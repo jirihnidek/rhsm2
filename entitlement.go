@@ -220,6 +220,10 @@ func (e *EntitlementCertificateUpToDateError) Error() string {
 // to install the new certificate and then delete the old one.
 // When force is true, the If-Modified-Since header is omitted, so candlepin always returns a fresh
 // certificate instead of a 304.
+// The accessible_content endpoint only returns the entitlement certificate, not its private key, so it
+// relies on an existing key file being present on disk. When something or somebody deletes the installed
+// entitlement certificate or key, there is no complete cert/key pair to update, so this method falls back
+// to getSCAEntitlementCertificates(), which fetches and installs a fresh certificate together with its key.
 func (rhsmClient *RHSMClient) UpdateEntitlementCertificate(force bool, metadata *RequestMetadata) (*string, *string, error) {
 	consumerUuid, err := rhsmClient.GetConsumerUUID()
 	if err != nil {
@@ -255,6 +259,15 @@ func (rhsmClient *RHSMClient) UpdateEntitlementCertificate(force bool, metadata 
 				certPath = *certKey.CertPath
 			}
 		}
+	}
+
+	// When no complete entitlement certificate/key pair is installed, then the certificate or key was
+	// deleted. The accessible_content endpoint used below only returns the certificate, not the key,
+	// so it cannot restore a missing key. Fall back to fetching the full certificate and key.
+	if certPath == "" || keyPath == "" {
+		log.Debug().Msg("no complete entitlement certificate and key pair installed; " +
+			"fetching a fresh entitlement certificate and key")
+		return rhsmClient.updateEntitlementCertificateFromScratch(metadata)
 	}
 
 	lastModifiedDate := lastModified.UTC().Format(time.RFC1123)
@@ -404,4 +417,31 @@ func (rhsmClient *RHSMClient) UpdateEntitlementCertificate(force bool, metadata 
 	}
 
 	return &newCertFilePath, &newKeyFilePath, nil
+}
+
+// updateEntitlementCertificateFromScratch fetches a fresh SCA entitlement certificate together with its
+// key and installs both. It is used by UpdateEntitlementCertificate when there is no complete entitlement
+// certificate/key pair installed (e.g. the certificate or key file was deleted), because the
+// accessible_content endpoint only returns the certificate and cannot restore a missing key.
+func (rhsmClient *RHSMClient) updateEntitlementCertificateFromScratch(metadata *RequestMetadata) (*string, *string, error) {
+	entCertKeys, err := rhsmClient.getSCAEntitlementCertificates(metadata)
+	if err != nil {
+		return nil, nil, fmt.Errorf("unable to get entitlement certificate and key: %s", err)
+	}
+
+	// There should be exactly one SCA entitlement certificate, but iterate to be safe and return the
+	// path of a certificate and key that were actually installed on the filesystem.
+	for _, entCertKey := range entCertKeys {
+		certFilePath := rhsmClient.entCertPath(entCertKey.Serial.Serial)
+		keyFilePath := rhsmClient.entKeyPath(entCertKey.Serial.Serial)
+		if _, err := os.Stat(*certFilePath); err != nil {
+			continue
+		}
+		if _, err := os.Stat(*keyFilePath); err != nil {
+			continue
+		}
+		return certFilePath, keyFilePath, nil
+	}
+
+	return nil, nil, fmt.Errorf("no entitlement certificate and key were installed")
 }
