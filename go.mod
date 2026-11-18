@@ -9,7 +9,7 @@ require (
 	github.com/jeandeaual/go-locale v0.0.0-20250612000132-0ef82f21eade
 	github.com/knqyf263/go-rpmdb v0.1.1
 	github.com/rs/zerolog v1.35.1
-	gopkg.in/ini.v1 v1.67.3
+	gopkg.in/ini.v1 v1.68.0
 	modernc.org/sqlite v1.62.0
 )
 
